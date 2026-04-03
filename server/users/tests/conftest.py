@@ -1,6 +1,7 @@
 from rest_framework.test import APIClient
 from django.urls import reverse
 import pytest
+from ..models import User
 
 
 @pytest.fixture
@@ -17,6 +18,10 @@ def register_url():
 def login_url():
     return reverse('login')
 
+@pytest.fixture
+def google_auth_url():
+    return reverse('google-auth')
+
 
 @pytest.fixture
 def valid_user_payload():
@@ -26,6 +31,13 @@ def valid_user_payload():
         "first_name": "John",
         "last_name": "Doe",
     }
+
+@pytest.fixture
+def existing_user():
+    return User.objects.create_user(
+        email="existinguser@test.com",
+        password="existingpassword"
+    )
 
 
 @pytest.fixture
