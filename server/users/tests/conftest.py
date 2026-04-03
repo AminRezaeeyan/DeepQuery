@@ -14,6 +14,11 @@ def register_url():
 
 
 @pytest.fixture
+def login_url():
+    return reverse('login')
+
+
+@pytest.fixture
 def valid_user_payload():
     return {
         "email": "test@example.com",

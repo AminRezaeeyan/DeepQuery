@@ -56,3 +56,64 @@ class TestCreateUser:
 
         assert response.status_code == 400
         assert User.objects.count() == old_user_count
+
+
+@pytest.mark.django_db
+class TestLoginUser:
+
+    def test_login_success(
+        self,
+        api_client,
+        login_url,
+        valid_user_payload
+    ):
+        User.objects.create_user(**valid_user_payload)
+
+        response = api_client.post(
+            login_url,
+            {
+                "email": valid_user_payload["email"],
+                "password": valid_user_payload["password"],
+            },
+            format="json"
+        )
+
+        assert response.status_code == 200
+        assert response.data["message"] == "Logged in successfully!"
+
+
+    def test_login_wrong_password(
+        self,
+        api_client,
+        login_url,
+        valid_user_payload
+    ):
+        User.objects.create_user(**valid_user_payload)
+
+        response = api_client.post(
+            login_url,
+            {
+                "email": valid_user_payload["email"],
+                "password": "wrongpassword",
+            },
+            format="json"
+        )
+
+        assert response.status_code == 400
+
+
+    def test_login_user_not_found(
+        self,
+        api_client,
+        login_url
+    ):
+        response = api_client.post(
+            login_url,
+            {
+                "email": "unknown@test.com",
+                "password": "password123",
+            },
+            format="json"
+        )
+
+        assert response.status_code == 400
