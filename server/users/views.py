@@ -1,7 +1,7 @@
 from rest_framework.views import APIView, Response, status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import LoginSerializer, RegisterSerializer
+from .serializers import GoogleAuthSerializer, LoginSerializer, RegisterSerializer
 
 def generate_tokens_for_user(user):
     refresh = RefreshToken.for_user(user)
@@ -41,6 +41,23 @@ class LoginView(APIView):
             data={
                 'message': 'Logged in successfully!',
                 'tokens': generate_tokens_for_user(user)
+            },
+            status=status.HTTP_200_OK
+        )
+    
+
+class GoogleAuthView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = GoogleAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+
+        return Response(
+            data={
+                "message": "Google authentication successful!",
+                "tokens": generate_tokens_for_user(user)
             },
             status=status.HTTP_200_OK
         )
