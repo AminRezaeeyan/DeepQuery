@@ -136,3 +136,4 @@ SIMPLE_JWT = {
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
 }
 
+GOOGLE_CLIENT_ID = "fake-google-client-id"
