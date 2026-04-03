@@ -20,12 +20,17 @@ class TestCreateUser:
         assert response.status_code == 201
         assert User.objects.count() - old_user_count == 1
 
-        user = User.objects.first()
-
-        assert user.email == valid_user_payload["email"]
+        # Verify user
+        user = User.objects.get(email=valid_user_payload["email"])
         assert user.first_name == valid_user_payload["first_name"]
         assert user.last_name == valid_user_payload["last_name"]
         assert user.check_password(valid_user_payload["password"])
+
+        # Verify tokens
+        assert "tokens" in response.data
+        assert "access" in response.data["tokens"]
+        assert "refresh" in response.data["tokens"]
+        assert response.data["tokens"]["token_type"] == "Bearer"
 
 
     def test_create_user_with_short_password_fails(
@@ -80,6 +85,11 @@ class TestLoginUser:
 
         assert response.status_code == 200
         assert response.data["message"] == "Logged in successfully!"
+        assert "tokens" in response.data
+        assert "access" in response.data["tokens"]
+        assert "refresh" in response.data["tokens"]
+        assert response.data["tokens"]["token_type"] == "Bearer"
+
 
 
     def test_login_wrong_password(
