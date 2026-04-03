@@ -74,8 +74,11 @@ WSGI_APPLICATION = 'deepquery.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'deepquery',
+        'HOST': 'localhost',
+        'USER': 'deepquery_user',
+        'PASSWORD': 'deepquery_dev'
     }
 }
 
