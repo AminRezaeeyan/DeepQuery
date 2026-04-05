@@ -47,3 +47,6 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.role} message in {self.chat_id}"
+    
+    class Meta:
+        ordering = ['-created_at']
