@@ -26,5 +26,10 @@ class LLMProvider(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    def save(self, *args, **kwargs):
+        if self.is_active:
+            LLMProvider.objects.exclude(id=self.id).update(is_active=False)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.name} ({self.provider_type})"
