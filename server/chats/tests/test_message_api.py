@@ -1,26 +1,37 @@
 import pytest
+from unittest.mock import patch
 from chats.models import Message
 
 
 pytestmark = pytest.mark.django_db
 
+class FakeChatService:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def stream_answer(self, *args, **kwargs):
+        yield "Hello"
+        yield " world"
+
+
 
 def test_create_message(auth_client, chat):
+    from unittest.mock import patch
+    from chats.models import Message
+
     old_count = Message.objects.count()
 
-    response = auth_client.post(
-        f"/api/chats/{chat.uuid}/messages/",
-        {
-            "content": "Hello AI"
-        },
-        format="json",
-    )
-
-    assert response.status_code == 201
-    assert Message.objects.count() - old_count == 1
-
-    msg = Message.objects.get(uuid=response.data["uuid"])
-    assert msg.content == "Hello AI"
+    with patch("chats.views.ChatService", FakeChatService):
+        response = auth_client.post(
+            f"/api/chats/{chat.uuid}/messages/",
+            {
+                "content": "Hello AI"
+            },
+            format="json",
+        )
+    list(response.streaming_content)
+    assert response.status_code == 200
+    assert Message.objects.count() == old_count + 2
 
 
 def test_list_chat_messages(auth_client, message, chat):
