@@ -2,6 +2,8 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from django.http import StreamingHttpResponse
+from ai_core.services.chat_service import ChatService
 
 from .models import Chat, Message
 from .serializers import (
@@ -38,10 +40,37 @@ class ChatViewSet(viewsets.ModelViewSet):
             return Response(serializer.data)
 
         elif request.method == "POST":
+
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save(chat=chat, role=Message.Role.USER)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+            # 1 - Save user message
+            user_message = serializer.save(
+                chat=chat,
+                role=Message.Role.USER
+            )
+
+            chat_service = ChatService()
+
+            # 2 - Stream assistant answer
+            def stream():
+                assistant_text = ""
+
+                for token in chat_service.stream_answer(user_message.content):
+                    assistant_text += token
+                    yield token
+
+                # 3 - Save assistant message after stream completes
+                Message.objects.create(
+                    chat=chat,
+                    role=Message.Role.ASSISTANT,
+                    content=assistant_text
+                )
+
+            return StreamingHttpResponse(
+                stream(),
+                content_type="text/plain"
+            )
     
 
 class MessageViewSet(
