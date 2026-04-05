@@ -1,7 +1,7 @@
 import google.generativeai as genai
-from .base import LLMProviderBase
+from .base import LLMProviderBase, register_provider
 
-
+@register_provider('gemini')
 class GeminiProvider(LLMProviderBase):
 
     def __init__(self, provider_config):

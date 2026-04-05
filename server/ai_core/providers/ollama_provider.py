@@ -1,7 +1,8 @@
 import requests
-from .base import LLMProviderBase
+from .base import LLMProviderBase, register_provider
 
 
+@register_provider('ollama')
 class OllamaProvider(LLMProviderBase):
 
     def __init__(self, provider_config):

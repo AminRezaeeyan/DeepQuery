@@ -1,7 +1,8 @@
+from ai_core.providers.base import LLMProviderBase, register_provider
 from openai import OpenAI
-from .base import LLMProviderBase
 
 
+@register_provider("openai")
 class OpenAIProvider(LLMProviderBase):
 
     def __init__(self, provider_config):
@@ -15,15 +16,11 @@ class OpenAIProvider(LLMProviderBase):
         self.model = provider_config.model_name
 
     def stream(self, prompt):
-
         stream = self.client.chat.completions.create(
             model=self.model,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
+            messages=[{"role": "user", "content": prompt}],
             stream=True
         )
-
         for chunk in stream:
             if chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content

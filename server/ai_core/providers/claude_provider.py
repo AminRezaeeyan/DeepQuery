@@ -1,7 +1,8 @@
 import anthropic
-from .base import LLMProviderBase
+from .base import LLMProviderBase, register_provider
 
 
+@register_provider('claude')
 class ClaudeProvider(LLMProviderBase):
 
     def __init__(self, provider_config):
