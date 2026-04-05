@@ -6,7 +6,7 @@ class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
         fields = ['uuid', 'role', 'content', 'created_at']
-        read_only_fields = ['uuid', 'created_at']
+        read_only_fields = ['uuid', 'role','created_at']
 
 
 class MessageUpdateSerializer(serializers.ModelSerializer):

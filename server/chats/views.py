@@ -40,7 +40,7 @@ class ChatViewSet(viewsets.ModelViewSet):
         elif request.method == "POST":
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.save(chat=chat)
+            serializer.save(chat=chat, role=Message.Role.USER)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
     
 

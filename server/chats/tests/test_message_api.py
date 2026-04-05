@@ -11,7 +11,6 @@ def test_create_message(auth_client, chat):
     response = auth_client.post(
         f"/api/chats/{chat.uuid}/messages/",
         {
-            "role": "user",
             "content": "Hello AI"
         },
         format="json",
