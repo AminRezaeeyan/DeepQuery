@@ -3,9 +3,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.http import StreamingHttpResponse
-from ai_core.services.chat_service import ChatService
+from django.core.exceptions import ValidationError
+from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable
+from chats.services.chat_service import ChatService
 
 from .models import Chat, Message
 from .serializers import (
@@ -30,7 +32,15 @@ class ChatViewSet(viewsets.ModelViewSet):
         return ChatSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user, provider_id=ProviderService.get_default_provider_id())
+        provider_id = ProviderService.get_default_provider_id()
+
+        chat = ChatService.get_or_create_chat(
+            user=self.request.user,
+            provider_id=provider_id
+        )
+
+        serializer.instance = chat
+
 
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, uuid=None):
@@ -53,7 +63,7 @@ class ChatViewSet(viewsets.ModelViewSet):
             )
 
             try:
-                chat_service = ChatService(chat.provider_id)
+                chat_service = ChatGenerationService(chat.provider_id)
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))
 
