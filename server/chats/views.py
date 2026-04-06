@@ -4,6 +4,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.http import StreamingHttpResponse
 from ai_core.services.chat_service import ChatService
+from ai_core.services.provider_service import ProviderService
+from ai_core.exceptions import ProviderUnavailable
 
 from .models import Chat, Message
 from .serializers import (
@@ -28,7 +30,7 @@ class ChatViewSet(viewsets.ModelViewSet):
         return ChatSerializer
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        serializer.save(user=self.request.user, provider_id=ProviderService.get_default_provider_id())
 
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, uuid=None):
@@ -50,7 +52,10 @@ class ChatViewSet(viewsets.ModelViewSet):
                 role=Message.Role.USER
             )
 
-            chat_service = ChatService()
+            try:
+                chat_service = ChatService(chat.provider_id)
+            except ProviderUnavailable as e:
+                raise ValidationError(str(e))
 
             # 2 - Stream assistant answer
             def stream():
