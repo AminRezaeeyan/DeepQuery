@@ -1,8 +1,8 @@
 from ai_core.services.llm_service import LLMService
 
-class ChatService:
+class ChatGenerationService:
     """
-    ChatService orchestrates high-level AI logic:
+    ChatGenerationService orchestrates high-level AI logic:
     - system prompts
     - conversation shaping
     - RAG injection
