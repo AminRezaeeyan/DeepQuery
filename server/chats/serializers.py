@@ -18,7 +18,7 @@ class MessageUpdateSerializer(serializers.ModelSerializer):
 class ChatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
-        fields = ['uuid', 'title', 'created_at']
+        fields = ['uuid', 'provider_id', 'title', 'created_at']
         read_only_fields = fields
 
 
@@ -26,4 +26,19 @@ class ChatSerializer(serializers.ModelSerializer):
 class ChatUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
-        fields = ["title"]
+        fields = ["title", "provider_id"]
+
+    def validate_provider_id(self, value):
+        chat = self.instance
+
+        # provider unchanged
+        if value == chat.provider_id:
+            return value
+
+        # check if chat already has messages
+        if Message.objects.filter(chat=chat).exists():
+            raise serializers.ValidationError(
+                "Provider cannot be changed once the chat has messages."
+            )
+
+        return value
