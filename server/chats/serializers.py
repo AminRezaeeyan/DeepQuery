@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import Chat, Message
 
+from  ai_core.exceptions import ProviderUnavailable
+from ai_core.services.provider_service import ProviderService
+
 
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
@@ -40,5 +43,11 @@ class ChatUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Provider cannot be changed once the chat has messages."
             )
+        
+        # Validate provider existence/activeness
+        try:
+            ProviderService.validate_provider_id(value)
+        except ProviderUnavailable as e:
+            raise serializers.ValidationError(str(e))
 
         return value
