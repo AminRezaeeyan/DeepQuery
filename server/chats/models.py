@@ -12,6 +12,8 @@ class Chat(models.Model):
         related_name="chats"
     )
 
+    provider_id = models.IntegerField(null=True, blank=True)
+
     title = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
