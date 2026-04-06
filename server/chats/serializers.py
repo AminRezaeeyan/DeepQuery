@@ -17,6 +17,19 @@ class MessageUpdateSerializer(serializers.ModelSerializer):
         model = Message
         fields = ['content']
 
+    def validate(self, attrs):
+        message = self.instance
+        if message.role != Message.Role.USER:
+            raise serializers.ValidationError("Only user messages can be edited.")
+        last_user_msg = (
+            Message.objects.filter(chat=message.chat, role=Message.Role.USER)
+            .order_by("-created_at")
+            .first()
+        )
+        if message != last_user_msg:
+            raise serializers.ValidationError("Only the last user message can be edited.")
+        return attrs
+
 
 class ChatSerializer(serializers.ModelSerializer):
     class Meta:

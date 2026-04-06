@@ -2,8 +2,8 @@ from rest_framework import viewsets, status, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from django.http import StreamingHttpResponse
-from django.core.exceptions import ValidationError
 from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable
@@ -19,7 +19,7 @@ from .serializers import (
 
 
 class ChatViewSet(viewsets.ModelViewSet):
-
+    http_method_names = ["get", "post", "patch", "delete"]
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
 
@@ -56,34 +56,18 @@ class ChatViewSet(viewsets.ModelViewSet):
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            # 1 - Save user message
             user_message = serializer.save(
                 chat=chat,
                 role=Message.Role.USER
             )
 
             try:
-                chat_service = ChatGenerationService(chat.provider_id)
+                stream = ChatService.generate_stream(chat, user_message)
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))
 
-            # 2 - Stream assistant answer
-            def stream():
-                assistant_text = ""
-
-                for token in chat_service.stream_answer(user_message.content):
-                    assistant_text += token
-                    yield token
-
-                # 3 - Save assistant message after stream completes
-                Message.objects.create(
-                    chat=chat,
-                    role=Message.Role.ASSISTANT,
-                    content=assistant_text
-                )
-
             return StreamingHttpResponse(
-                stream(),
+                stream,
                 content_type="text/plain"
             )
     
@@ -93,6 +77,7 @@ class MessageViewSet(
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet
 ):
+    http_method_names = ["get", "post", "patch"]
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
 
@@ -103,3 +88,21 @@ class MessageViewSet(
         if self.action in ["update", "partial_update"]:
             return MessageUpdateSerializer
         return MessageSerializer
+
+    def update(self, request, *args, **kwargs):
+        message = self.get_object()
+
+        serializer = self.get_serializer(message, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        try:
+            stream = ChatService.regenerate_from_edit(message)
+        except ProviderUnavailable as e:
+            raise ValidationError(str(e))
+
+        return StreamingHttpResponse(
+            stream,
+            content_type="text/plain"
+        )
+
