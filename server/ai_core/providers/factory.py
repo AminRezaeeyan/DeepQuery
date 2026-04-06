@@ -1,5 +1,6 @@
 import pkgutil
 import importlib
+
 from ai_core.providers.base import PROVIDER_REGISTRY
 from ai_core.models import LLMProvider
 
@@ -16,16 +17,28 @@ class ProviderFactory:
             importlib.import_module(f"ai_core.providers.{module_name}")
 
     @classmethod
-    def get_active_provider(cls):
+    def get_provider(cls, provider_id=None):
         cls._auto_import_providers()
 
-        provider = (
-            LLMProvider.objects.filter(is_active=True)
-            .first()
-        )
+        if provider_id:
+            provider = (
+                LLMProvider.objects
+                .filter(id=provider_id, is_active=True)
+                .first()
+            )
 
-        if not provider:
-            raise Exception("No active LLM provider configured")
+            if not provider:
+                raise Exception("Requested provider not found or inactive")
+
+        else:
+            provider = (
+                LLMProvider.objects
+                .filter(is_default=True, is_active=True)
+                .first()
+            )
+
+            if not provider:
+                raise Exception("No default active LLM provider configured")
 
         provider_class = PROVIDER_REGISTRY.get(provider.provider_type)
 

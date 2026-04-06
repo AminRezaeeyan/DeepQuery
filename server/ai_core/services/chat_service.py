@@ -11,8 +11,8 @@ class ChatService:
     - calling LLMService as the final step
     """
 
-    def __init__(self):
-        self.llm = LLMService()
+    def __init__(self, provider_id=None):
+        self.llm = LLMService(provider_id)
 
     def stream_answer(self, user_prompt: str):
        
