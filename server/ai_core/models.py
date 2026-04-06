@@ -31,6 +31,11 @@ class LLMProvider(models.Model):
     def save(self, *args, **kwargs):
         if self.is_default:
             LLMProvider.objects.exclude(id=self.id).update(is_default=False)
+        
+        # If no default provider is currently set, mark this one as default
+        if LLMProvider.objects.filter(is_default=True).count() == 0:
+            self.is_default = True
+            
         super().save(*args, **kwargs)
 
 
