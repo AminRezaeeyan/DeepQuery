@@ -14,7 +14,7 @@ class Chat(models.Model):
 
     provider_id = models.IntegerField(null=True, blank=True)
 
-    title = models.CharField(max_length=255, blank=True)
+    title = models.CharField(max_length=255, blank=True, default='New chat')
 
     created_at = models.DateTimeField(auto_now_add=True)
 
