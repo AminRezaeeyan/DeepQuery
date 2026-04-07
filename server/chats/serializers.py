@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 from .models import Chat, Message
 
 from  ai_core.exceptions import ProviderUnavailable
@@ -13,22 +14,34 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class MessageUpdateSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = Message
-        fields = ['content']
+        fields = ["content"]
 
-    def validate(self, attrs):
+    def validate(self, data):
         message = self.instance
+
         if message.role != Message.Role.USER:
             raise serializers.ValidationError("Only user messages can be edited.")
-        last_user_msg = (
-            Message.objects.filter(chat=message.chat, role=Message.Role.USER)
+
+        last_user = (
+            message.chat.messages
+            .filter(role=Message.Role.USER, is_deleted=False)
             .order_by("-created_at")
             .first()
         )
-        if message != last_user_msg:
+
+        if last_user != message:
             raise serializers.ValidationError("Only the last user message can be edited.")
-        return attrs
+
+        return data
+
+    def update(self, instance, validated_data):
+        instance.content = validated_data["content"]
+        instance.edited_at = timezone.now()
+        instance.save(update_fields=["content", "edited_at"])
+        return instance
 
 
 class ChatSerializer(serializers.ModelSerializer):
