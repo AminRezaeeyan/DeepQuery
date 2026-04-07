@@ -82,7 +82,7 @@ class MessageViewSet(
     lookup_field = "uuid"
 
     def get_queryset(self):
-        return Message.objects.filter(chat__user=self.request.user)
+        return Message.objects.filter(chat__user=self.request.user, is_deleted=False)
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
