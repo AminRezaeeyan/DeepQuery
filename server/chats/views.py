@@ -4,10 +4,12 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from django.http import StreamingHttpResponse
+
 from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable
 from chats.services.chat_service import ChatService
+from chats.pagination import ChatCursorPagination
 
 from .models import Chat, Message
 from .serializers import (
@@ -22,6 +24,7 @@ class ChatViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete"]
     permission_classes = [IsAuthenticated]
     lookup_field = "uuid"
+    pagination_class = ChatCursorPagination
 
     def get_queryset(self):
         return Chat.objects.filter(user=self.request.user)
@@ -50,9 +53,13 @@ class ChatViewSet(viewsets.ModelViewSet):
         chat = self.get_object()
 
         if request.method == "GET":
-            messages = chat.messages.order_by("-created_at")
-            serializer = MessageSerializer(messages, many=True)
-            return Response(serializer.data)
+            queryset = chat.messages.order_by("-created_at")
+
+            paginator = MessageCursorPagination()
+            page = paginator.paginate_queryset(queryset, request)
+
+            serializer = MessageSerializer(page, many=True)
+            return paginator.get_paginated_response(serializer.data)
 
         elif request.method == "POST":
 
