@@ -40,7 +40,7 @@ class MessageUpdateSerializer(serializers.ModelSerializer):
 class ChatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
-        fields = ['uuid', 'provider_id', 'title', 'created_at']
+        fields = ['uuid', 'provider_id', 'title', 'created_at', 'updated_at']
         read_only_fields = fields
 
 

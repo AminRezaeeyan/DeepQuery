@@ -31,7 +31,7 @@ class ChatService:
             chat_service = ChatGenerationService(chat.provider_id)
         except ProviderUnavailable:
             raise
-
+                
         def stream():
             assistant_text = ""
 
@@ -45,6 +45,7 @@ class ChatService:
                 content=assistant_text
             )
 
+        chat.mark_updated()
         return stream()
     
     @staticmethod

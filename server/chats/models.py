@@ -24,9 +24,15 @@ class Chat(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    updated_at = models.DateTimeField(auto_now=True)
+
     deleted_at = models.DateTimeField(null=True, blank=True)
                                      
     is_deleted = models.BooleanField(default=False)
+
+    def mark_updated(self):
+        self.updated_at = timezone.now()
+        self.save(update_fields=["updated_at"])
 
     def mark_deleted(self):
         if self.is_deleted:
