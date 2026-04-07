@@ -24,7 +24,7 @@ class ChatViewSet(viewsets.ModelViewSet):
     lookup_field = "uuid"
 
     def get_queryset(self):
-        return Chat.objects.filter(user=self.request.user, is_deleted=False)
+        return Chat.objects.filter(user=self.request.user)
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
@@ -89,7 +89,7 @@ class MessageViewSet(
     lookup_field = "uuid"
 
     def get_queryset(self):
-        return Message.objects.filter(chat__user=self.request.user, is_deleted=False)
+        return Message.objects.filter(chat__user=self.request.user)
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
@@ -99,12 +99,14 @@ class MessageViewSet(
     def update(self, request, *args, **kwargs):
         message = self.get_object()
 
-        serializer = self.get_serializer(message, data=request.data, partial=True)
+        serializer = self.get_serializer(data=request.data, instance=message, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
 
         try:
-            stream = ChatService.regenerate_from_edit(message)
+            stream = ChatService.edit_user_message(
+                message,
+                serializer.validated_data["content"]
+            )
         except ProviderUnavailable as e:
             raise ValidationError(str(e))
 
@@ -112,4 +114,5 @@ class MessageViewSet(
             stream,
             content_type="text/plain"
         )
+
 

@@ -3,8 +3,13 @@ from django.conf import settings
 from django.utils import timezone
 import uuid
 
+from chats.managers import ChatManager, MessageManager
+
 
 class Chat(models.Model):
+    objects = ChatManager()        # hides deleted chats
+    all_objects = models.Manager() # shows everything
+    
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, db_index=True)
 
     user = models.ForeignKey(
@@ -34,6 +39,8 @@ class Chat(models.Model):
 
 
 class Message(models.Model):
+    objects = MessageManager()     # hides deleted chats
+    all_objects = models.Manager() # shows everything
 
     class Role(models.TextChoices):
         SYSTEM = "system", "System"
@@ -62,10 +69,14 @@ class Message(models.Model):
                                      
     is_deleted = models.BooleanField(default=False)
 
-    def mark_deleted(self):
+    def mark_edited(self):
         self.is_deleted = True
         self.edited_at = timezone.now()
         self.save(update_fields=["is_deleted", "edited_at"])
+
+    def mark_deleted(self):
+        self.is_deleted = True
+        self.save(update_fields=["is_deleted"])
 
     def __str__(self):
         return f"{self.role} message in {self.chat_id}"

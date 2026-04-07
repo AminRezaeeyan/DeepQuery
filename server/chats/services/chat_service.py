@@ -10,7 +10,7 @@ class ChatService:
     def get_or_create_chat(user, provider_id):
         chat = (
             Chat.objects
-            .filter(user=user, is_deleted=False)
+            .filter(user=user)
             .annotate(message_count=Count("messages"))
             .filter(message_count=0)
             .first()
@@ -46,23 +46,21 @@ class ChatService:
             )
 
         return stream()
-
+    
     @staticmethod
-    def regenerate_from_edit(message):
-        """
-        Used when user edits their last message.
-        Deletes assistant reply and regenerates.
-        """
+    def edit_user_message(old_message, new_content):
+        chat = old_message.chat
 
-        chat = message.chat
+        # 1. Mark old user message deleted
+        old_message.mark_edited()
 
+        # 2. Soft delete assistant reply originally answering the old message
         assistant = (
             Message.objects
             .filter(
                 chat=chat,
                 role=Message.Role.ASSISTANT,
-                created_at__gt=message.created_at,
-                is_deleted=False
+                created_at__gt=old_message.created_at
             )
             .order_by("created_at")
             .first()
@@ -71,4 +69,11 @@ class ChatService:
         if assistant:
             assistant.mark_deleted()
 
-        return ChatService.generate_stream(chat, message)
+        # 3. Create new user message
+        new_user_message = Message.objects.create(
+            chat=chat,
+            role=Message.Role.USER,
+            content=new_content
+        )
+
+        return ChatService.generate_stream(chat, new_user_message)
