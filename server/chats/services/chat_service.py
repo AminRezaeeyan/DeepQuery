@@ -61,13 +61,14 @@ class ChatService:
             .filter(
                 chat=chat,
                 role=Message.Role.ASSISTANT,
-                created_at__gt=message.created_at
+                created_at__gt=message.created_at,
+                is_deleted=False
             )
             .order_by("created_at")
             .first()
         )
 
         if assistant:
-            assistant.delete()
+            assistant.mark_deleted()
 
         return ChatService.generate_stream(chat, message)
