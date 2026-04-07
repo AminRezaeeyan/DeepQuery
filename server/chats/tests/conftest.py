@@ -1,75 +1,50 @@
-from django.urls import reverse
 import pytest
-from rest_framework.test import APIClient
+from unittest.mock import patch
 from django.contrib.auth import get_user_model
+from rest_framework.test import APIClient
+
 from chats.models import Chat, Message
 
 User = get_user_model()
-
 
 @pytest.fixture
 def api_client():
     return APIClient()
 
-
 @pytest.fixture
 def user():
-    return User.objects.create_user(
-        email="user@test.com",
-        password="strongpass123"
-    )
-
+    return User.objects.create_user(email="test@example.com", password="password")
 
 @pytest.fixture
-def another_user():
-    return User.objects.create_user(
-        email="another@test.com",
-        password="strongpass123"
-    )
-
+def other_user():
+    return User.objects.create_user(email="other@example.com", password="password")
 
 @pytest.fixture
-def jwt_token(api_client, user):
-    url = reverse("login")
-    response = api_client.post(
-        url,
-        {
-            "email": "user@test.com",
-            "password": "strongpass123"
-        },
-    )
-
-    assert response.status_code == 200
-    return response.data["tokens"]["access"]
-
-
-
-@pytest.fixture
-def auth_client(api_client, jwt_token):
-    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {jwt_token}")
+def auth_client(api_client, user):
+    api_client.force_authenticate(user=user)
     return api_client
-
 
 @pytest.fixture
 def chat(user):
-    return Chat.objects.create(
-        user=user,
-        title="Test Chat"
-    )
-
+    return Chat.objects.create(user=user, provider_id=1, title="Test Chat")
 
 @pytest.fixture
-def another_users_chat(another_user):
-    return Chat.objects.create(
-        user=another_user,
-        title="Another Chat"
-    )
-
+def mock_default_provider():
+    with patch("ai_core.services.provider_service.ProviderService.get_default_provider_id", return_value=1) as mock:
+        yield mock
 
 @pytest.fixture
-def message(chat):
-    return Message.objects.create(
-        chat=chat,
-        role="user",
-        content="hello"
-    )
+def populated_chat(chat):
+    # Creating a sequence of messages
+    msg1 = Message.objects.create(chat=chat, role=Message.Role.USER, content="First question")
+    msg2 = Message.objects.create(chat=chat, role=Message.Role.ASSISTANT, content="First answer")
+    msg3 = Message.objects.create(chat=chat, role=Message.Role.USER, content="Second question")
+    msg4 = Message.objects.create(chat=chat, role=Message.Role.ASSISTANT, content="Second answer")
+    
+    return {
+        "chat": chat,
+        "first_user_msg": msg1,
+        "first_assistant_msg": msg2,
+        "last_user_msg": msg3,
+        "last_assistant_msg": msg4
+    }
