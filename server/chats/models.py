@@ -29,10 +29,15 @@ class Chat(models.Model):
     is_deleted = models.BooleanField(default=False)
 
     def mark_deleted(self):
-        if not self.is_deleted:
-            self.is_deleted = True
-            self.deleted_at = timezone.now()
-            self.save(update_fields=["is_deleted", "deleted_at"])
+        if self.is_deleted:
+            return
+        
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=["is_deleted", "deleted_at"])
+
+        # soft delete cascade
+        self.messages.update(is_deleted=True)
 
     def __str__(self):
         return f"Chat {self.uuid}"
