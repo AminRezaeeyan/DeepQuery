@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.utils import timezone
 import uuid
 
 
@@ -17,6 +18,16 @@ class Chat(models.Model):
     title = models.CharField(max_length=255, blank=True, default='New chat')
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    deleted_at = models.DateTimeField(null=True, blank=True)
+                                     
+    is_deleted = models.BooleanField(default=False)
+
+    def mark_deleted(self):
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_at = timezone.now()
+            self.save(update_fields=["is_deleted", "deleted_at"])
 
     def __str__(self):
         return f"Chat {self.uuid}"
@@ -53,7 +64,8 @@ class Message(models.Model):
 
     def mark_deleted(self):
         self.is_deleted = True
-        self.save(update_fields=["is_deleted"])
+        self.edited_at = timezone.now()
+        self.save(update_fields=["is_deleted", "edited_at"])
 
     def __str__(self):
         return f"{self.role} message in {self.chat_id}"

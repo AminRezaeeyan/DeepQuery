@@ -24,7 +24,7 @@ class ChatViewSet(viewsets.ModelViewSet):
     lookup_field = "uuid"
 
     def get_queryset(self):
-        return Chat.objects.filter(user=self.request.user)
+        return Chat.objects.filter(user=self.request.user, is_deleted=False)
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
@@ -41,6 +41,9 @@ class ChatViewSet(viewsets.ModelViewSet):
 
         serializer.instance = chat
 
+    def perform_destroy(self, instance):
+        instance.mark_deleted()
+
 
     @action(detail=True, methods=["get", "post"])
     def messages(self, request, uuid=None):
@@ -55,6 +58,10 @@ class ChatViewSet(viewsets.ModelViewSet):
 
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
+
+            if chat.is_deleted:
+                raise ValidationError("Chat has been deleted.")
+
 
             user_message = serializer.save(
                 chat=chat,

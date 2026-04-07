@@ -10,7 +10,7 @@ class ChatService:
     def get_or_create_chat(user, provider_id):
         chat = (
             Chat.objects
-            .filter(user=user)
+            .filter(user=user, is_deleted=False)
             .annotate(message_count=Count("messages"))
             .filter(message_count=0)
             .first()

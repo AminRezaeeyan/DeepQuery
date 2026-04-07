@@ -1,5 +1,4 @@
 from rest_framework import serializers
-from django.utils import timezone
 from .models import Chat, Message
 
 from  ai_core.exceptions import ProviderUnavailable
@@ -36,12 +35,6 @@ class MessageUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Only the last user message can be edited.")
 
         return data
-
-    def update(self, instance, validated_data):
-        instance.content = validated_data["content"]
-        instance.edited_at = timezone.now()
-        instance.save(update_fields=["content", "edited_at"])
-        return instance
 
 
 class ChatSerializer(serializers.ModelSerializer):
