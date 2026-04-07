@@ -46,6 +46,14 @@ class Message(models.Model):
     content = models.TextField()
 
     created_at = models.DateTimeField(auto_now_add=True)
+    
+    edited_at = models.DateTimeField(null=True, blank=True)
+                                     
+    is_deleted = models.BooleanField(default=False)
+
+    def mark_deleted(self):
+        self.is_deleted = True
+        self.save(update_fields=["is_deleted"])
 
     def __str__(self):
         return f"{self.role} message in {self.chat_id}"
