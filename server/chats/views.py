@@ -9,7 +9,7 @@ from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable
 from chats.services.chat_service import ChatService
-from chats.pagination import ChatCursorPagination
+from chats.pagination import ChatCursorPagination, MessageCursorPagination
 
 from .models import Chat, Message
 from .serializers import (
