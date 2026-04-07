@@ -47,6 +47,11 @@ class Chat(models.Model):
 
     def __str__(self):
         return f"Chat {self.uuid}"
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "-updated_at"]),
+        ]
 
 
 class Message(models.Model):
@@ -94,3 +99,7 @@ class Message(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=["chat", "-created_at"]),
+        ]
+
