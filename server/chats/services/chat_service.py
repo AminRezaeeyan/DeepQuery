@@ -28,7 +28,7 @@ class ChatService:
     def generate_stream(chat, user_message):
  
         try:
-            chat_service = ChatGenerationService(chat.provider_id)
+            chat_service = ChatGenerationService(chat.id, chat.provider_id)
         except ProviderUnavailable:
             raise
                 
