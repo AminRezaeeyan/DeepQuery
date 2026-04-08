@@ -78,3 +78,16 @@ class ChatService:
         )
 
         return ChatService.generate_stream(chat, new_user_message)
+    
+    @staticmethod
+    def get_message_pairs(chat_id, page=1, page_size=20):
+        offset = (page - 1) * page_size
+
+        qs = (
+            Message.objects
+            .filter(chat_id=chat_id)
+            .order_by("-created_at")
+            .values("role", "content")[offset:offset + page_size]
+        )
+
+        return list(qs)
