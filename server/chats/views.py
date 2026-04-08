@@ -7,7 +7,7 @@ from django.http import StreamingHttpResponse
 
 from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
-from ai_core.exceptions import ProviderUnavailable
+from ai_core.exceptions import ProviderUnavailable, ContextLimitExceededError
 from chats.services.chat_service import ChatService
 from chats.pagination import ChatCursorPagination, MessageCursorPagination
 
@@ -79,6 +79,8 @@ class ChatViewSet(viewsets.ModelViewSet):
                 stream = ChatService.generate_stream(chat, user_message)
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))
+            except ContextLimitExceededError as e:
+                raise ValidationError(str(e))
 
             return StreamingHttpResponse(
                 stream,
@@ -121,5 +123,4 @@ class MessageViewSet(
             stream,
             content_type="text/plain"
         )
-
 
