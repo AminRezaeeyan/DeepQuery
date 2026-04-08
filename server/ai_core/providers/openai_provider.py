@@ -15,12 +15,23 @@ class OpenAIProvider(LLMProviderBase):
 
         self.model = provider_config.model_name
 
-    def stream(self, prompt):
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            stream=True
-        )
-        for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+    def stream(self, messages):
+
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                stream=True
+            )
+
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except BadRequestError as e:
+            msg = str(e).lower()
+
+            if "context" in msg or "maximum context length" in msg:
+                raise ContextLimitExceededError(str(e))
+
+            raise

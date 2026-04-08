@@ -1,9 +1,11 @@
 import requests
-import json  # Import the json library
-from .base import LLMProviderBase, register_provider
+import json
+
+from ai_core.providers.base import LLMProviderBase, register_provider
+from ai_core.exceptions import ContextLimitExceededError
 
 
-@register_provider('ollama')
+@register_provider("ollama")
 class OllamaProvider(LLMProviderBase):
 
     def __init__(self, provider_config):
@@ -12,7 +14,29 @@ class OllamaProvider(LLMProviderBase):
         self.base_url = provider_config.base_url or "http://localhost:11434"
         self.model = provider_config.model_name
 
-    def stream(self, prompt):
+    def _messages_to_prompt(self, messages):
+
+        parts = []
+
+        for m in messages:
+            role = m["role"]
+            content = m["content"]
+
+            if role == "system":
+                parts.append(f"System:\n{content}")
+            elif role == "user":
+                parts.append(f"User:\n{content}")
+            elif role == "assistant":
+                parts.append(f"Assistant:\n{content}")
+
+        parts.append("Assistant:")
+
+        return "\n\n".join(parts)
+
+    def stream(self, messages):
+
+        prompt = self._messages_to_prompt(messages)
+
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
@@ -23,26 +47,23 @@ class OllamaProvider(LLMProviderBase):
                 },
                 stream=True
             )
+
+            if response.status_code == 400:
+                raise ContextLimitExceededError(response.text)
+
             response.raise_for_status()
 
             for line in response.iter_lines():
-                if line:
-                    try:
-                        decoded_line = line.decode('utf-8')
-                        data = json.loads(decoded_line)
+                if not line:
+                    continue
 
-                        if 'response' in data and data['response']:
-                            yield data['response']
+                data = json.loads(line.decode("utf-8"))
 
-                        if data.get('done', False):
-                            break
+                if "response" in data and data["response"]:
+                    yield data["response"]
 
-                    except json.JSONDecodeError:
-                        print(f"Warning: Could not decode JSON from line: {line.decode('utf-8')}")
-                    except Exception as e:
-                        print(f"An unexpected error occurred processing a line: {e}")
+                if data.get("done"):
+                    break
 
         except requests.exceptions.RequestException as e:
-            yield f"Error: Could not connect to Ollama at {self.base_url}. Please ensure Ollama is running."
-        except Exception as e:
-            yield f"An unexpected error occurred: {e}"
+            raise Exception(f"Could not connect to Ollama: {e}")

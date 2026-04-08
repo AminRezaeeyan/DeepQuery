@@ -1,8 +1,10 @@
 import anthropic
-from .base import LLMProviderBase, register_provider
+
+from ai_core.providers.base import LLMProviderBase, register_provider
+from ai_core.exceptions import ContextLimitExceededError
 
 
-@register_provider('claude')
+@register_provider("claude")
 class ClaudeProvider(LLMProviderBase):
 
     def __init__(self, provider_config):
@@ -14,15 +16,32 @@ class ClaudeProvider(LLMProviderBase):
 
         self.model = provider_config.model_name
 
-    def stream(self, prompt):
+    def stream(self, messages):
 
-        with self.client.messages.stream(
-            model=self.model,
-            max_tokens=1024,
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-        ) as stream:
+        system_prompt = None
+        chat_messages = []
 
-            for text in stream.text_stream:
-                yield text
+        for m in messages:
+            if m["role"] == "system":
+                system_prompt = m["content"]
+            else:
+                chat_messages.append(m)
+
+        try:
+            with self.client.messages.stream(
+                model=self.model,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=chat_messages
+            ) as stream:
+
+                for text in stream.text_stream:
+                    yield text
+
+        except anthropic.BadRequestError as e:
+            msg = str(e).lower()
+
+            if "context" in msg or "token" in msg or "limit" in msg:
+                raise ContextLimitExceededError(str(e))
+
+            raise
