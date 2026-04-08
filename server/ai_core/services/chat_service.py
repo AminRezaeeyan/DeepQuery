@@ -22,8 +22,10 @@ class ChatGenerationService:
             "Keep responses concise, accurate, and helpful."
         )
 
-        final_prompt = f"{system_prompt}\n\nUser: {user_prompt}\nAssistant:"
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
 
-        # Stream from LLMService
-        for token in self.llm.stream(final_prompt):
+        for token in self.llm.stream(messages):
             yield token
