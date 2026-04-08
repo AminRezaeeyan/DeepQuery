@@ -22,11 +22,22 @@ class LLMProvider(models.Model):
 
     config = models.JSONField(blank=True,null=True)
 
+    max_context_tokens = models.PositiveIntegerField(
+        default=16000,
+        help_text="Maximum context window for this model"
+    )
+
     is_active = models.BooleanField(default=False)
 
     is_default = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def context_limit(self):   
+        return self.max_context_tokens
 
     def save(self, *args, **kwargs):
         if self.is_default:
