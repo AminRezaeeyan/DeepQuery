@@ -18,6 +18,27 @@ class ProviderService:
         return provider.id
     
     @staticmethod
+    def get_default_provider():
+        provider = (
+            LLMProvider.objects
+            .filter(is_default=True, is_active=True)
+            .first()
+        )
+
+        if not provider:
+            raise ProviderUnavailable("No default active LLM provider configured")
+
+        return provider
+    
+    @staticmethod
+    def get_provider(provider_id):
+        provider = LLMProvider.objects.filter(id=provider_id, is_active=True).first()
+        if not provider:
+            raise ProviderUnavailable("No default active LLM provider configured")
+
+        return provider
+    
+    @staticmethod
     def validate_provider_id(provider_id):
         provider = LLMProvider.objects.filter(id=provider_id, is_active=True).first()
         if not provider:
