@@ -80,14 +80,27 @@ class ChatService:
         return ChatService.generate_stream(chat, new_user_message)
     
     @staticmethod
-    def get_message_pairs(chat_id, page=1, page_size=20):
-        offset = (page - 1) * page_size
+    def get_message_pairs(chat_id, cursor=None, limit=20):
+        """
+        Returns messages from newest → oldest.
+        Cursor is the created_at of the last message from previous page.
+        """
 
-        qs = (
-            Message.objects
-            .filter(chat_id=chat_id)
-            .order_by("-created_at")
-            .values("role", "content")[offset:offset + page_size]
+        qs = Message.objects.filter(chat_id=chat_id)
+
+        if cursor:
+            qs = qs.filter(created_at__lt=cursor)
+
+        messages = list(
+            qs.order_by("-created_at")
+            .values("role", "content", "created_at")[:limit]
         )
 
-        return list(qs)
+        next_cursor = messages[-1]["created_at"] if messages else None
+
+        result = [
+            {"role": m["role"], "content": m["content"]}
+            for m in messages
+        ]
+
+        return result, next_cursor
