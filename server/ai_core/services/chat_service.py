@@ -1,7 +1,6 @@
 from ai_core.services.llm_service import LLMService
 from ai_core.services.token_service import TokenService
 from ai_core.exceptions import ContextLimitExceededError
-from chats.services.chat_service import ChatService
 
 class ChatGenerationService:
     """
@@ -120,6 +119,7 @@ class ShortTermMemory:
         self.token_limit = token_limit
 
     def collect(self):
+        from chats.services.chat_service import ChatService
         cursor = None
         total_tokens = 0
         messages = []
