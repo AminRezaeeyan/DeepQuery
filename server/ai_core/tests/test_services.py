@@ -4,7 +4,7 @@ from unittest.mock import patch
 from ai_core.models import AITaskConfig
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.services.task_provider_resolver import TaskProviderResolver
-from ai_core.providers.factory import ProviderFactory
+from ai_core.llm_providers.factory import ProviderFactory
 
 
 class MockProviderInstance:
@@ -58,7 +58,7 @@ class TestTaskProviderResolver:
 @pytest.mark.django_db
 class TestProviderFactory:
 
-    @patch("ai_core.providers.factory.PROVIDER_REGISTRY", {"openai": MockProviderInstance})
+    @patch("ai_core.llm_providers.factory.PROVIDER_REGISTRY", {"openai": MockProviderInstance})
     @patch.object(TaskProviderResolver, "get_provider_for_task")
     def test_get_provider_success(self, mock_resolver, openai_provider):
         # Mock the resolver to return our openai model
@@ -71,7 +71,7 @@ class TestProviderFactory:
         assert instance.provider_model == openai_provider
         mock_resolver.assert_called_once_with(task_type="chat", provider_id=None)
 
-    @patch("ai_core.providers.factory.PROVIDER_REGISTRY", {})
+    @patch("ai_core.llm_providers.factory.PROVIDER_REGISTRY", {})
     @patch.object(TaskProviderResolver, "get_provider_for_task")
     def test_get_provider_unknown_type_fails(self, mock_resolver, openai_provider):
         mock_resolver.return_value = openai_provider

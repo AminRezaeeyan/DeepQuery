@@ -1,4 +1,4 @@
-from ai_core.providers.factory import ProviderFactory
+from ai_core.llm_providers.factory import ProviderFactory
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.services.provider_service import ProviderService
 
