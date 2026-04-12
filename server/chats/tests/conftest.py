@@ -30,7 +30,7 @@ def chat(user):
 
 @pytest.fixture
 def mock_default_provider():
-    with patch("ai_core.services.provider_service.ProviderService.get_default_provider_id", return_value=1) as mock:
+    with patch("ai_core.services.provider_service.ProviderService.get_default_chat_provider_id", return_value=1) as mock:
         yield mock
 
 @pytest.fixture

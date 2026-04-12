@@ -58,7 +58,7 @@ class TestCreateChat:
 @pytest.mark.django_db
 class TestUpdateChat:
 
-    @patch("ai_core.services.provider_service.ProviderService.validate_provider_id")
+    @patch("ai_core.services.provider_service.ProviderService.validate_chat_provider_id")
     def test_update_title_success(self, mock_validate, auth_client, chat):
         response = auth_client.patch(f"/api/chats/{chat.uuid}/", {"title": "Updated Title"})
         
@@ -66,7 +66,7 @@ class TestUpdateChat:
         chat.refresh_from_db()
         assert chat.title == "Updated Title"
 
-    @patch("ai_core.services.provider_service.ProviderService.validate_provider_id")
+    @patch("ai_core.services.provider_service.ProviderService.validate_chat_provider_id")
     def test_update_provider_without_messages(self, mock_validate, auth_client, chat):
         response = auth_client.patch(f"/api/chats/{chat.uuid}/", {"provider_id": 2})
         
@@ -82,7 +82,7 @@ class TestUpdateChat:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         assert "Provider cannot be changed" in str(response.data)
 
-    @patch("ai_core.services.provider_service.ProviderService.validate_provider_id")
+    @patch("ai_core.services.provider_service.ProviderService.validate_chat_provider_id")
     def test_update_with_invalid_provider_fails(self, mock_validate, auth_client, chat):
         mock_validate.side_effect = ProviderUnavailable("Invalid provider")
         
