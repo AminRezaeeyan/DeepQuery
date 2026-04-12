@@ -16,7 +16,7 @@ class ChatGenerationService:
 
     def __init__(self, chat_id, provider_id=None):
         self.chat_id = chat_id
-        self.llm = LLMService(provider_id)
+        self.llm = LLMService(provider_id=provider_id, task_type='chat')
         self.provider_config = self.llm.provider_config
         self.prompt_builder = PromptBuilder(self.provider_config.max_context_tokens)
 
