@@ -1,4 +1,4 @@
-from ai_core.providers.base import LLMProviderBase, register_provider
+from ai_core.llm_providers.base import LLMProviderBase, register_provider
 from openai import OpenAI
 
 

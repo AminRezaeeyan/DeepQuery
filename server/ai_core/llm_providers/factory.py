@@ -1,7 +1,7 @@
 import pkgutil
 import importlib
 
-from ai_core.providers.base import PROVIDER_REGISTRY
+from ai_core.llm_providers.base import PROVIDER_REGISTRY
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.services.task_provider_resolver import TaskProviderResolver
 
@@ -14,10 +14,10 @@ class ProviderFactory:
         if cls._initialized:
             return
 
-        import ai_core.providers as providers_pkg
+        import ai_core.llm_providers as providers_pkg
 
         for _, module_name, _ in pkgutil.iter_modules(providers_pkg.__path__):
-            importlib.import_module(f"ai_core.providers.{module_name}")
+            importlib.import_module(f"ai_core.llm_providers.{module_name}")
 
         cls._initialized = True
 
