@@ -9,4 +9,9 @@ class ModelListAPIView(ListAPIView):
     serializer_class = ModelSerializer
 
     def get_queryset(self):
-        return LLMProvider.objects.filter(is_active=True)
+        return (
+            LLMProvider.objects
+            .filter(task_configs__task_type="chat")
+            .prefetch_related("task_configs")
+            .distinct()
+        )
