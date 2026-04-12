@@ -65,7 +65,7 @@ class ChatUpdateSerializer(serializers.ModelSerializer):
         
         # Validate provider existence/activeness
         try:
-            ProviderService.validate_provider_id(value)
+            ProviderService.validate_chat_provider_id(value)
         except ProviderUnavailable as e:
             raise serializers.ValidationError(str(e))
 

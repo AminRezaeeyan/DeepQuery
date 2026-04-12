@@ -35,7 +35,7 @@ class ChatViewSet(viewsets.ModelViewSet):
         return ChatSerializer
 
     def perform_create(self, serializer):
-        provider_id = ProviderService.get_default_provider_id()
+        provider_id = ProviderService.get_default_chat_provider_id()
 
         chat = ChatService.get_or_create_chat(
             user=self.request.user,
