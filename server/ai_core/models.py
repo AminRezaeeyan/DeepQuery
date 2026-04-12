@@ -116,7 +116,7 @@ class AITaskConfig(models.Model):
 
         # Auto-populate all task configs if first-ever entry
         if is_new:
-            self._auto_populate_if_first()
+            self._auto_populate_if_first_provider()
 
  
     def _auto_populate_if_first_provider(self):
