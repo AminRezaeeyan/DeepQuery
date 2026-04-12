@@ -7,7 +7,8 @@ from ai_core.exceptions import ProviderUnavailable
 
 
 class MockChatGenerationService:
-    def __init__(self, provider_id=None):
+    def __init__(self, chat_id, provider_id=None):
+        self.chat_id = chat_id
         self.provider_id = provider_id
 
     def stream_answer(self, content):
@@ -16,7 +17,7 @@ class MockChatGenerationService:
         yield "response!"
 
 class MockFailingChatGenerationService:
-    def __init__(self, provider_id=None):
+    def __init__(self, chat_id, provider_id=None):
         raise ProviderUnavailable("Provider is down")
 
 
