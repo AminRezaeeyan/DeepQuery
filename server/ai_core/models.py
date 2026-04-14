@@ -154,6 +154,7 @@ class EmbeddingProvider(models.Model):
         ("ready", "Ready"),
         ("downloading", "Downloading"),
         ("error", "Error"),
+         ("reembedding", "Re-embedding"),
     ]
 
     name = models.CharField(max_length=100, unique=True)
@@ -174,6 +175,8 @@ class EmbeddingProvider(models.Model):
         help_text="Model name (e.g. 'text-embedding-3-large' or 'all-mpnet-base-v2')"
     )
 
+    dimension = models.PositiveIntegerField()
+
     status = models.CharField(
         max_length=50,
         choices=STATUS_CHOICES,
@@ -190,6 +193,11 @@ class EmbeddingProvider(models.Model):
         help_text="The only provider used for live search + new embeddings."
     )
 
+    is_serving = models.BooleanField(
+        default=False,
+        help_text="The provider currently used for queries."
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -199,70 +207,100 @@ class EmbeddingProvider(models.Model):
 
 
     def clean(self):
+
         if not self.model_name:
             raise ValidationError("model_name is required for all embedding providers.")
-        
-        if self.is_active:
-            qs = EmbeddingProvider.objects.filter(is_active=True).exclude(pk=self.pk)
-            if qs.exists():
-                raise ValidationError("Only one embedding provider can be active at a time.")
 
         if self.provider_type != "hf_local":
             if not self.api_key:
-                raise ValidationError(f"API key is required for provider type '{self.provider_type}'.")
+                raise ValidationError(
+                    f"API key is required for provider type '{self.provider_type}'."
+                )
 
             if self.status == "downloading":
-                raise ValidationError("Only local providers can have 'downloading' status.")
+                raise ValidationError(
+                    "Only local providers can have 'downloading' status."
+                )
+
+        # only one active provider
+        if self.is_active:
+            qs = EmbeddingProvider.objects.filter(is_active=True).exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "Only one embedding provider can be active at a time."
+                )
+
+        # only one serving provider
+        if self.is_serving:
+            qs = EmbeddingProvider.objects.filter(is_serving=True).exclude(pk=self.pk)
+            if qs.exists():
+                raise ValidationError(
+                    "Only one embedding provider can be serving at a time."
+            )
 
     def save(self, *args, **kwargs):
-        self.full_clean()
 
         is_new = self.pk is None
         old_instance = None
         if not is_new:
             old_instance = EmbeddingProvider.objects.filter(pk=self.pk).first()
             old_status = old_instance.status
+        
+        self.full_clean()
 
-        # If no other providers exist, force the first one to be active.
+        # If no other providers exist, force the first one to be active and serving
         if is_new and not EmbeddingProvider.objects.exists():
             self.is_active = True
+            self.is_serving = True
 
+        # Only one active model
         if self.is_active:
-            # If this is being set to active, deactivate all others
             EmbeddingProvider.objects.exclude(pk=self.pk).update(is_active=False)
-
-        # Handle Local Model Initialization
-        if self.provider_type == "hf_local" and (is_new or old_status == "error"):
-            from .tasks import download_embedding_model
-            download_embedding_model.delay(self.id)
 
         super().save(*args, **kwargs)
 
-        # Post-Save Actions
-        if is_new and self.provider_type == "hf_local":
-            #TODO:
-            # from embedding_providers.tasks import download_embedding_model
-            # download_embedding_model.delay(self.pk)
-            pass
+        # Handle local HF model download
+        if self.provider_type == "hf_local":
 
-        # B. Handle Provider Change (Re-embedding / Versioning)
-        if old_instance and old_instance.is_active != self.is_active and self.is_active:
-            # TODO: IMPLEMENT RE-EMBEDDING SYSTEM
-            # When the active provider changes:
-            # 1. Update the 'version' or 'provider' index for search.
-            # 2. Trigger Celery task `reindex_all_vectors` to re-process all documents
-            #    using the new active provider's embedding logic.
-            # 3. Ensure search operations use the new provider's vectors only.
-            pass
+            trigger_download = False
+
+            if is_new:
+                trigger_download = True
+
+            elif old_instance and old_instance.status == "error":
+                trigger_download = True
+
+            elif old_instance and old_instance.model_name != self.model_name:
+                trigger_download = True
+
+
+            if trigger_download:
+                from .tasks import download_embedding_model
+                download_embedding_model.delay(self.id)
+
+         # Handle provider change
+        if old_instance and not old_instance.is_active and self.is_active:
+            self.start_reembedding_cycle()
+
 
     def delete(self, *args, **kwargs):
-        # Cannot delete active provider
         if self.is_active:
             raise ValidationError("Cannot delete the active embedding provider.")
-
-        # TODO: Prevent deletion if embeddings exist
-        # from vector_db.models import EmbeddingRecord
-        # if EmbeddingRecord.objects.filter(provider=self).exists():
-        #     raise ValidationError("Cannot delete provider with existing embeddings.")
+        if self.is_serving:
+            raise ValidationError("Cannot delete provider currently serving embeddings.")
+        if self.status == "reembedding":
+            raise ValidationError("Cannot delete a provider while re-embedding is running.")
 
         return super().delete(*args, **kwargs)
+    
+    
+    def start_reembedding_cycle(self):
+
+        from .tasks import reembed_all_objects
+
+        self.status = "reembedding"
+        self.status_message = "Starting re-embedding process..."
+        super().save(update_fields=["status", "status_message"])
+
+        reembed_all_objects.delay(self.id)
+
