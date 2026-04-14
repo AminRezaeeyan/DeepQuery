@@ -1,6 +1,10 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.db.models import Q
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
+from pgvector.django import VectorField
+
 
 class LLMProvider(models.Model):
 
@@ -303,4 +307,66 @@ class EmbeddingProvider(models.Model):
         super().save(update_fields=["status", "status_message"])
 
         reembed_all_objects.delay(self.id)
+
+
+
+class EmbeddedObject(models.Model):
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.CASCADE
+    )
+
+    object_id = models.CharField(max_length=255)
+
+    target = GenericForeignKey("content_type", "object_id")
+
+    provider = models.ForeignKey(
+        EmbeddingProvider,
+        on_delete=models.PROTECT,
+        related_name="embedded_objects"
+    )
+
+    tag = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["content_type", "object_id"]),
+        ]
+
+    def __str__(self):
+        return f"{self.target}"
+    
+
+class EmbeddingChunk(models.Model):
+
+    embedded_object = models.ForeignKey(
+        EmbeddedObject,
+        on_delete=models.CASCADE,
+        related_name="chunks"
+    )
+
+    text = models.TextField()
+
+    embedding = VectorField()
+
+    chunk_index = models.PositiveIntegerField()
+
+    token_count = models.PositiveIntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["chunk_index"]
+
+    def __str__(self):
+        return f"Chunk {self.chunk_index}"
+
+
 
