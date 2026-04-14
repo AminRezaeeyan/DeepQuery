@@ -1,6 +1,9 @@
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
+from django.contrib.contenttypes.models import ContentType
+
+from ai_core.services.embedding_serivce import EmbeddingService
 
 from .models import EmbeddingProvider, EmbeddedObject
 from .embedding_providers.factory import EmbeddingProviderFactory
@@ -41,45 +44,33 @@ def download_embedding_model(self, provider_id: int):
             provider.save(update_fields=["status", "status_message"])
 
         return f"Provider {provider_id} download failed: {str(e)}"
-    
 
 
 @shared_task
 def reembed_all_objects(new_provider_id):
 
-    new_provider = EmbeddingProvider.objects.get(id=new_provider_id)
+    service = EmbeddingService(provider_id=new_provider_id)
 
-    provider_instance = EmbeddingProviderFactory.from_model(new_provider)
-
-    objects = EmbeddedObject.objects.all().distinct(
-        "content_type",
-        "object_id"
+    unique_objects = (
+        EmbeddedObject.objects
+        .values("content_type", "object_id")
+        .distinct()
     )
 
-    for obj in objects:
+    for entry in unique_objects:
+        ct = ContentType.objects.get(id=entry["content_type"])
+        model_cls = ct.model_class()
+        instance = model_cls.objects.filter(id=entry["object_id"]).first()
 
-        target = obj.target
-
-        if not target:
+        if instance is None:
             continue
 
-        text = str(target)
+        raw_text = str(instance)
 
-        embeddings = provider_instance.embed([text])
+        if not raw_text:
+            continue
 
-        new_object = EmbeddedObject.objects.create(
-            content_type=obj.content_type,
-            object_id=obj.object_id,
-            provider=new_provider,
-        )
-
-        for i, vector in enumerate(embeddings):
-
-            new_object.chunks.create(
-                text=text,
-                embedding=vector,
-                chunk_index=i
-            )
+        service.embed_instance(instance, raw_text)
 
     finish_provider_switch(new_provider_id)
 
