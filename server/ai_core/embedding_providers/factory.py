@@ -1,7 +1,7 @@
 import pkgutil
 import importlib
 
-from embedding_providers.base import EMBEDDING_PROVIDER_REGISTRY
+from .base import EMBEDDING_PROVIDER_REGISTRY
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.models import EmbeddingProvider
 
