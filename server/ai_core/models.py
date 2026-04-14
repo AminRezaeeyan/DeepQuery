@@ -181,6 +181,8 @@ class EmbeddingProvider(models.Model):
 
     dimension = models.PositiveIntegerField()
 
+    max_tokens = models.PositiveIntegerField(default=512)
+
     status = models.CharField(
         max_length=50,
         choices=STATUS_CHOICES,

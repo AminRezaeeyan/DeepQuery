@@ -27,3 +27,8 @@ class GeminiEmbeddingProvider(EmbeddingProviderBase):
 
     def is_available(self):
         return bool(self.provider_config.api_key)
+
+
+    def count_tokens(self, text):
+        from services.token_service import TokenService
+        return TokenService.count_tokens(text)

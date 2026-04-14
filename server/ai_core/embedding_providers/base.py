@@ -17,9 +17,18 @@ class EmbeddingProviderBase:
     """
     provider_type: str = None
 
-    def __init__(self, model_name: str, api_key: str = None, **kwargs):
-        self.model_name = model_name
-        self.api_key = api_key
+    def __init__(self, provider_model):
+        """
+        provider_model = instance of EmbeddingProvider Django model
+        """
+        self.provider_model = provider_model
+
+        # Shortcut attributes
+        self.model_name = provider_model.model_name
+        self.api_key = provider_model.api_key
+        self.max_tokens = provider_model.max_tokens
+        self.dimension = provider_model.dimension
+
 
     def embed_documents(self, texts):
         raise NotImplementedError
@@ -29,3 +38,18 @@ class EmbeddingProviderBase:
 
     def is_available(self):
         raise NotImplementedError
+
+    # ---- unified interface for chunking ----
+
+    def count_tokens(self, text: str) -> int:
+        """
+        Must be implemented by each provider.
+        """
+        raise NotImplementedError
+
+    def max_input_tokens(self):
+        """
+        Unified accessor so chunking code is clean.
+        """
+        return self.max_tokens
+

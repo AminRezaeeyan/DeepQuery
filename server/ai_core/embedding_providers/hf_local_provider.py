@@ -11,6 +11,11 @@ _load_lock = Lock()
 
 @register_embedding_provider("hf_local")
 class HFLocalEmbeddingProvider(EmbeddingProviderBase):
+    def __init__(self, provider_model):
+        super().__init__(provider_model)
+        from transformers import AutoTokenizer
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
     @property
     def model_path(self):
         """Determines the local path where the model is stored."""
@@ -48,3 +53,6 @@ class HFLocalEmbeddingProvider(EmbeddingProviderBase):
         """Method to be called by a Celery task to perform the initial download."""
         model = SentenceTransformer(self.provider_config.model_name)
         model.save(self.model_path)
+
+    def count_tokens(self, text):
+        return len(self.tokenizer.encode(text))
