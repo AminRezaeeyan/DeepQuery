@@ -221,6 +221,7 @@ class EmbeddingProvider(models.Model):
         old_instance = None
         if not is_new:
             old_instance = EmbeddingProvider.objects.filter(pk=self.pk).first()
+            old_status = old_instance.status
 
         # If no other providers exist, force the first one to be active.
         if is_new and not EmbeddingProvider.objects.exists():
@@ -231,9 +232,9 @@ class EmbeddingProvider(models.Model):
             EmbeddingProvider.objects.exclude(pk=self.pk).update(is_active=False)
 
         # Handle Local Model Initialization
-        if is_new and self.provider_type == "hf_local":
-            self.status = "downloading"
-            self.status_message = "Initiating model download..."
+        if self.provider_type == "hf_local" and (is_new or old_status == "error"):
+            from .tasks import download_embedding_model
+            download_embedding_model.delay(self.id)
 
         super().save(*args, **kwargs)
 
