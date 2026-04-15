@@ -17,10 +17,10 @@ class EmbeddingProviderFactory:
         if cls._initialized:
             return
 
-        import embedding_providers as providers_pkg
+        import ai_core.embedding_providers as providers_pkg
 
         for _, module_name, _ in pkgutil.iter_modules(providers_pkg.__path__):
-            importlib.import_module(f"embedding_providers.{module_name}")
+            importlib.import_module(f"ai_core.embedding_providers.{module_name}")
 
         cls._initialized = True
 

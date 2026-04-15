@@ -230,11 +230,7 @@ class EmbeddingProvider(models.Model):
 
         # only one active provider
         if self.is_active:
-            qs = EmbeddingProvider.objects.filter(is_active=True).exclude(pk=self.pk)
-            if qs.exists():
-                raise ValidationError(
-                    "Only one embedding provider can be active at a time."
-                )
+            EmbeddingProvider.objects.exclude(pk=self.pk).update(is_active=False)
 
         # only one serving provider
         if self.is_serving:
@@ -258,10 +254,6 @@ class EmbeddingProvider(models.Model):
         if is_new and not EmbeddingProvider.objects.exists():
             self.is_active = True
             self.is_serving = True
-
-        # Only one active model
-        if self.is_active:
-            EmbeddingProvider.objects.exclude(pk=self.pk).update(is_active=False)
 
         super().save(*args, **kwargs)
 
@@ -290,12 +282,13 @@ class EmbeddingProvider(models.Model):
 
 
     def delete(self, *args, **kwargs):
-        if self.is_active:
-            raise ValidationError("Cannot delete the active embedding provider.")
-        if self.is_serving:
-            raise ValidationError("Cannot delete provider currently serving embeddings.")
         if self.status == "reembedding":
             raise ValidationError("Cannot delete a provider while re-embedding is running.")
+        if self.is_serving:
+            raise ValidationError("Cannot delete provider currently serving embeddings.")
+        if self.is_active:
+            raise ValidationError("Cannot delete the active embedding provider.")
+        
 
         return super().delete(*args, **kwargs)
     

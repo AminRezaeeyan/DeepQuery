@@ -2,7 +2,7 @@ import re
 from typing import List, Optional, Tuple
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, connection
-from embedding_providers.factory import EmbeddingProviderFactory
+from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.models import EmbeddedObject, EmbeddingChunk, EmbeddingProvider
 
@@ -197,31 +197,40 @@ class EmbeddingService:
         Returns:
             List of tuples: (instance, score)
         """
-
         query_vec = self.embed_query(query)
-
         params = [query_vec]
-        query_sql = """
-            SELECT 
+
+
+        base_sql = """
+            SELECT
                 c.id,
                 c.embedded_object_id,
-                1 - (c.embedding <=> %s) AS score
+                1 - (c.embedding <=> %s::vector) AS score
             FROM ai_core_embeddingchunk c
         """
+        
+        join_sql = ""
+        where_clauses = []
+
+        # Add JOIN if we need to filter on the EmbeddedObject table
+        if content_model or tag:
+            join_sql = " INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id "
 
         # Optional filtering by model type
         if content_model:
             ct = ContentType.objects.get_for_model(content_model)
-            query_sql += " INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id "
-            query_sql += " WHERE eo.content_type_id = %s "
+            where_clauses.append("eo.content_type_id = %s")
             params.append(ct.id)
-        else:
-            query_sql += " WHERE TRUE "
 
         # Optional tag filter
         if tag:
-            query_sql += " AND eo.tag = %s "
+            where_clauses.append("eo.tag = %s")
             params.append(tag)
+        
+        # Assemble the full query
+        query_sql = base_sql + join_sql
+        if where_clauses:
+            query_sql += " WHERE " + " AND ".join(where_clauses)
 
         query_sql += " ORDER BY score DESC LIMIT %s;"
         params.append(limit)

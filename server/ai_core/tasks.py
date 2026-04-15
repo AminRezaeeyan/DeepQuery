@@ -3,10 +3,9 @@ from django.db import transaction
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 
-from ai_core.services.embedding_serivce import EmbeddingService
-
-from .models import EmbeddingProvider, EmbeddedObject
-from .embedding_providers.factory import EmbeddingProviderFactory
+from server.ai_core.services.embedding_service import EmbeddingService
+from ai_core.models import EmbeddingProvider, EmbeddedObject
+from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 
 @shared_task(bind=True)
 def download_embedding_model(self, provider_id: int):

@@ -25,6 +25,7 @@ class EmbeddingProviderBase:
 
         # Shortcut attributes
         self.model_name = provider_model.model_name
+        self.provider_type = provider_model.provider_type
         self.api_key = provider_model.api_key
         self.max_tokens = provider_model.max_tokens
         self.dimension = provider_model.dimension
