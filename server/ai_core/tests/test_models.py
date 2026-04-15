@@ -2,7 +2,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from unittest.mock import patch
 
-from ai_core.models import LLMProvider, AITaskConfig
+from ai_core.models import LLMProvider, AITaskConfig, EmbeddingProvider
 
 @pytest.mark.django_db
 class TestLLMProvider:
@@ -90,3 +90,121 @@ class TestAITaskConfig:
         assert AITaskConfig.objects.filter(task_type="chat").exists()
         assert AITaskConfig.objects.filter(task_type="summarization").exists()
         assert AITaskConfig.objects.filter(task_type="embedding").exists()
+
+
+@pytest.mark.django_db
+class TestEmbeddingProviderValidation:
+
+    def test_missing_model_name_raises_validation_error(self):
+        provider = EmbeddingProvider(
+            name="Test",
+            provider_type="openai",
+            api_key="key",
+            dimension=1536
+        )
+        with pytest.raises(ValidationError) as exc:
+            provider.clean()
+        assert "model_name is required" in str(exc.value)
+
+    def test_missing_api_key_for_remote_provider_raises_error(self):
+        provider = EmbeddingProvider(
+            name="Test",
+            provider_type="openai",
+            model_name="test-model",
+            dimension=1536
+        )
+        with pytest.raises(ValidationError) as exc:
+            provider.clean()
+        assert "API key is required" in str(exc.value)
+
+    def test_downloading_status_on_remote_provider_raises_error(self):
+        provider = EmbeddingProvider(
+            name="Test",
+            provider_type="openai",
+            api_key="key",
+            model_name="test-model",
+            dimension=1536,
+            status="downloading"
+        )
+        with pytest.raises(ValidationError) as exc:
+            provider.clean()
+        assert "Only local providers can have 'downloading' status" in str(exc.value)
+
+@pytest.mark.django_db
+class TestEmbeddingProviderSaveLogic:
+
+    def test_first_provider_becomes_active_and_serving(self):
+        # Database is initially empty
+        provider = EmbeddingProvider(
+            name="First",
+            provider_type="hf_local",
+            model_name="test-model",
+            dimension=384
+        )
+        provider.save()
+        
+        assert provider.is_active is True
+        assert provider.is_serving is True
+
+    def test_saving_new_active_provider_deactivates_old_ones(self, openai_emb_provider):
+        assert openai_emb_provider.is_active is True
+
+        new_provider = EmbeddingProvider.objects.create(
+            name="New Active",
+            provider_type="hf_local",
+            model_name="test",
+            dimension=128,
+            is_active=True 
+        )
+
+        openai_emb_provider.refresh_from_db()
+        assert openai_emb_provider.is_active is False
+        assert new_provider.is_active is True
+
+    @patch("ai_core.tasks.download_embedding_model.delay")
+    def test_saving_new_hf_local_triggers_download(self, mock_delay):
+        provider = EmbeddingProvider.objects.create(
+            name="New HF",
+            provider_type="hf_local",
+            model_name="test",
+            dimension=128
+        )
+        mock_delay.assert_called_once_with(provider.id)
+
+
+@pytest.mark.django_db
+class TestEmbeddingProviderDeleteLogic:
+
+    def test_cannot_delete_active_provider(self, openai_emb_provider):
+        openai_emb_provider.is_serving = False
+        with pytest.raises(ValidationError) as exc:
+            openai_emb_provider.delete()
+        assert "Cannot delete the active embedding provider" in str(exc.value)
+
+    def test_cannot_delete_serving_provider(self, openai_emb_provider):
+        # Make it inactive but serving
+        openai_emb_provider.is_active = False
+        openai_emb_provider.save(update_fields=["is_active"])
+
+        with pytest.raises(ValidationError) as exc:
+            openai_emb_provider.delete()
+        assert "Cannot delete provider currently serving" in str(exc.value)
+
+    def test_cannot_delete_reembedding_provider(self, hf_local_provider):
+        hf_local_provider.status = "reembedding"
+        hf_local_provider.save()
+
+        with pytest.raises(ValidationError) as exc:
+            hf_local_provider.delete()
+        assert "Cannot delete a provider while re-embedding is running" in str(exc.value)
+
+    def test_successful_deletion(self, hf_local_provider):
+        # hf_local_provider is not active, serving, or reembedding
+        hf_local_provider.status = "ready"
+        hf_local_provider.is_serving = False
+        hf_local_provider.is_active = False
+        provider_id = hf_local_provider.id
+
+        hf_local_provider.delete()
+        assert EmbeddingProvider.objects.filter(id=provider_id).exists() is False
+
