@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from django.http import StreamingHttpResponse
+from django.db.models import Q
 
 from ai_core.services.chat_service import ChatGenerationService
 from ai_core.services.provider_service import ProviderService
@@ -46,6 +47,27 @@ class ChatViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         instance.mark_deleted()
+
+    @action(detail=False, methods=["get"])
+    def search(self, request):
+        query = request.query_params.get("q","").strip()
+
+        if not query:
+            return Response({"detail": "Query 'q' is required."}, status=400)
+        
+        chats = (
+            Chat.objects
+            .filter(user=request.user)
+            .filter(
+                Q(title__icontains=query) |
+                Q(messages__content__icontains=query)
+            )
+            .distinct()
+            .order_by("-updated_at")
+        )
+
+        serializer = ChatSerializer(chats, many=True)
+        return Response(serializer.data)
 
 
     @action(detail=True, methods=["get", "post"])
