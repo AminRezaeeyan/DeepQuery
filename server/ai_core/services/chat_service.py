@@ -108,3 +108,35 @@ class PromptBuilder:
         )
 
         return messages
+    
+
+class ChatTitleGenerator:
+    SYSTEM_PROMPT = (
+        "You generate extremely short, human-friendly conversation titles. "
+        "Rules:\n"
+        "- Maximum 6 words\n"
+        "- No quotes\n"
+        "- No ending punctuation\n"
+        "- Title must summarize the user's first message\n"
+        "- Be concise and specific"
+    )
+
+    def __init__(self):
+        self.llm = LLMService(task_type="title_generation")
+
+    def generate(self, first_user_message: str) -> str:
+        messages = [
+            {"role": "system", "content": self.SYSTEM_PROMPT},
+            {"role": "user", "content": first_user_message},
+        ]
+
+        stream = self.llm.stream(messages=messages)
+
+        title = ""
+
+        for token in stream:
+            title += str(token)
+
+        title = title.strip().replace('"', '').replace("'", "")[:80]
+
+        return title
