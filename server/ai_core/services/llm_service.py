@@ -15,7 +15,7 @@ class LLMService:
             raise ProviderUnavailable("LLM provider not available")
 
         self.provider_config = provider_config
-        self.provider = ProviderFactory.get_provider(task_type=task_type, provider_id=provider_config.id)
+        self.provider = ProviderFactory.get_provider(task_type=task_type, provider_id=provider_id)
 
 
     def stream(self, messages: list[dict]):
