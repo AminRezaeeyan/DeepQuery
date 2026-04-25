@@ -6,7 +6,7 @@ from rest_framework.exceptions import ValidationError
 from django.http import StreamingHttpResponse
 from django.db.models import Q
 
-from ai_core.services.chat_service import ChatGenerationService
+from ai_core.services.chat_service import ChatTitleGenerator
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable, ContextLimitExceededError
 from chats.services.chat_service import ChatService
@@ -97,8 +97,15 @@ class ChatViewSet(viewsets.ModelViewSet):
                 role=Message.Role.USER
             )
 
+            is_first_message = chat.messages.exclude(id=user_message.id).count() == 0
+
+            if is_first_message:
+                from .tasks import generate_chat_title
+                generate_chat_title.delay(chat.id, user_message.id)
+
             try:
                 stream = ChatService.generate_stream(chat, user_message)
+
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))
             except ContextLimitExceededError as e:
