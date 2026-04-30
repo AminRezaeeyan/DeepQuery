@@ -22,6 +22,8 @@ class Chat(models.Model):
 
     title = models.CharField(max_length=255, blank=True, default='New chat')
 
+    is_temporary = models.BooleanField(default=False)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)

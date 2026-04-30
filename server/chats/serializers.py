@@ -40,7 +40,7 @@ class MessageUpdateSerializer(serializers.ModelSerializer):
 class ChatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
-        fields = ['uuid', 'provider_id', 'title', 'created_at', 'updated_at']
+        fields = ['uuid', 'provider_id', 'title', 'is_temporary', 'created_at', 'updated_at']
         read_only_fields = fields
 
 
@@ -48,25 +48,37 @@ class ChatSerializer(serializers.ModelSerializer):
 class ChatUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Chat
-        fields = ["title", "provider_id"]
+        fields = ["title", "provider_id", "is_temporary"]
+
+    def validate(self, data):
+        chat = self.instance
+
+        if "is_temporary" in data:
+            new_value = data["is_temporary"]
+
+            if new_value != chat.is_temporary:
+                if Message.objects.filter(chat=chat).exists():
+                    raise serializers.ValidationError(
+                        "Temporary mode can only be changed when chat has no messages."
+                    )
+
+        return data
 
     def validate_provider_id(self, value):
         chat = self.instance
 
-        # provider unchanged
         if value == chat.provider_id:
             return value
 
-        # check if chat already has messages
         if Message.objects.filter(chat=chat).exists():
             raise serializers.ValidationError(
                 "Provider cannot be changed once the chat has messages."
             )
-        
-        # Validate provider existence/activeness
+
         try:
             ProviderService.validate_chat_provider_id(value)
         except ProviderUnavailable as e:
             raise serializers.ValidationError(str(e))
 
         return value
+
