@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -173,6 +174,8 @@ class EmbeddingProvider(models.Model):
         blank=True,
         help_text="API key for API-based providers"
     )
+
+    base_url = models.URLField(blank=True,null=True)
 
     model_name = models.CharField(
         max_length=255,
@@ -362,6 +365,23 @@ class EmbeddingChunk(models.Model):
 
     def __str__(self):
         return f"Chunk {self.chunk_index}"
+
+
+class MemoryFact(models.Model):
+    chat_id = models.IntegerField(null=True, blank=True)
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="memory_facts"
+    )
+
+    fact = models.TextField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
 
 
 

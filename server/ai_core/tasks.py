@@ -3,9 +3,10 @@ from django.db import transaction
 from django.utils import timezone
 from django.contrib.contenttypes.models import ContentType
 
-from server.ai_core.services.embedding_service import EmbeddingService
-from ai_core.models import EmbeddingProvider, EmbeddedObject
+from ai_core.services.embedding_service import EmbeddingService
+from ai_core.models import EmbeddingProvider, EmbeddedObject, MemoryFact
 from ai_core.embedding_providers.factory import EmbeddingProviderFactory
+from ai_core.services.memory.fact_extractor import FactExtractor
 
 @shared_task(bind=True)
 def download_embedding_model(self, provider_id: int):
@@ -94,5 +95,50 @@ def finish_provider_switch(new_provider_id):
 
         old_provider.is_serving = False
         old_provider.save()
+
+
+@shared_task
+def extract_and_embed_facts_task(user_id, chat_id, text, provider_id=None):
+    """
+    Background job:
+    1. Load message
+    2. Extract facts using FactExtractor
+    3. Save MemoryFact rows
+    4. Embed each fact using EmbeddingService
+    """
+
+    extractor = FactExtractor(provider_id=provider_id)
+
+    facts = extractor.extract_facts(text)
+
+    embed = EmbeddingService(provider_id=provider_id)
+
+    if facts is None:
+        return
+    
+    for fact in facts:
+
+        exists = MemoryFact.objects.filter(
+            chat_id=chat_id,
+            user_id=user_id,
+            fact__iexact=fact.strip()
+        ).exists()
+
+        if exists:
+            continue
+
+        with transaction.atomic():
+            mem = MemoryFact.objects.create(
+                chat_id=chat_id,
+                user_id=user_id,
+                fact=fact.strip(),
+            )
+
+        # Step 4 — Embed the fact
+        embed.embed_instance(
+            instance=mem,
+            text=fact,
+            tag=f"user:{mem.user_id}"
+        )
 
 

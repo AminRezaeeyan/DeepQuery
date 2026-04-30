@@ -6,7 +6,7 @@ from .base import EmbeddingProviderBase, register_embedding_provider
 class OpenAIEmbeddingProvider(EmbeddingProviderBase):
     def __init__(self, provider_model):
         super().__init__(provider_model)
-        self.client = OpenAI(api_key=self.provider_model.api_key)
+        self.client = OpenAI(api_key=self.provider_model.api_key, base_url=provider_model.base_url)
 
     def embed_documents(self, texts):
         resp = self.client.embeddings.create(

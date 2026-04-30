@@ -1,5 +1,7 @@
 from ai_core.llm_providers.base import LLMProviderBase, register_provider
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
+
+from ai_core.exceptions import ContextLimitExceededError
 
 
 @register_provider("openai")

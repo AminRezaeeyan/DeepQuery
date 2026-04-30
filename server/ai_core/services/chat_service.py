@@ -2,6 +2,7 @@ from ai_core.services.llm_service import LLMService
 from ai_core.services.token_service import TokenService
 from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.memory.short_term_memory import ShortTermMemory
+from ai_core.services.memory.long_term_memory import LongTermMemoryService
 
 class ChatGenerationService:
     """
@@ -14,11 +15,13 @@ class ChatGenerationService:
     - calling LLMService as the final step
     """
 
-    def __init__(self, chat_id, provider_id=None):
+    def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False):
+        self.user_id = user_id
         self.chat_id = chat_id
         self.llm = LLMService(provider_id=provider_id, task_type='chat')
         self.provider_config = self.llm.provider_config
         self.prompt_builder = PromptBuilder(self.provider_config.max_context_tokens)
+        self.memory = LongTermMemoryService(user_id=user_id, enabled= not is_temporary)
 
     def stream_answer(self, user_prompt: str):
 
@@ -29,18 +32,28 @@ class ChatGenerationService:
 
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
-        memory = ShortTermMemory(
+        memory_block = self.memory.build_memory_context(
+            query=user_prompt,
+            token_limit=budgets["long_term_memory"],
+            max_candidates=20,
+        )
+
+
+        short_term_memmory = ShortTermMemory(
             chat_id=self.chat_id,
             token_limit=budgets["short_term_memory"]
         )
 
-        short_term_messages = memory.collect()
+        short_term_messages = short_term_memmory.collect()
 
         messages = self.prompt_builder.build_messages(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            short_term_memory=short_term_messages
+            short_term_memory=short_term_messages,
+            long_term_memory=memory_block
         )
+
+        self.memory.store_from_message(self.chat_id, user_prompt)
 
         for token in self.llm.stream(messages):
             yield token
@@ -93,12 +106,23 @@ class PromptBuilder:
         self,
         system_prompt: str,
         user_prompt: str,
+        long_term_memory: str,
         short_term_memory: list | None = None
     ):
 
         messages = [
             {"role": "system", "content": system_prompt},
         ]
+
+        if long_term_memory:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "The following facts are long‑term memories about the user. "
+                    "Use them when relevant.\n\n"
+                    f"{long_term_memory}"
+                )
+            })
 
         if short_term_memory:
             messages.extend(short_term_memory)

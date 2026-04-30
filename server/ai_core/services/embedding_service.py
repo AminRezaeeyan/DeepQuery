@@ -243,6 +243,7 @@ class EmbeddingService:
         for chunk_id, eo_id, score in rows:
             eo = EmbeddedObject.objects.select_related("content_type").get(id=eo_id)
             obj = eo.content_type.get_object_for_this_type(id=eo.object_id)
+            print(obj, score)
             results.append((obj, score))
 
         return results
