@@ -3,6 +3,7 @@ from ai_core.services.token_service import TokenService
 from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.memory.short_term_memory import ShortTermMemory
 from ai_core.services.memory.long_term_memory import LongTermMemoryService
+from ai_core.services.document_rag_service import DocumentRAGService
 
 class ChatGenerationService:
     """
@@ -18,45 +19,60 @@ class ChatGenerationService:
     def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False):
         self.user_id = user_id
         self.chat_id = chat_id
+        self.is_temporary = is_temporary
         self.llm = LLMService(provider_id=provider_id, task_type='chat')
         self.provider_config = self.llm.provider_config
         self.prompt_builder = PromptBuilder(self.provider_config.max_context_tokens)
         self.memory = LongTermMemoryService(user_id=user_id, enabled= not is_temporary)
+        self.document_rag = DocumentRAGService(chat_id=chat_id)
 
     def stream_answer(self, user_prompt: str):
-
         system_prompt = (
             "You are a helpful AI assistant. "
-            "Keep responses concise, accurate, and helpful."
+            "Provide accurate, clear, and concise answers."
         )
 
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
-        memory_block = self.memory.build_memory_context(
+        # Long-term memory (skip if temporary)
+        memory_block = ""
+        if not self.is_temporary:
+            memory_block = self.memory.build_memory_context(
+                query=user_prompt,
+                token_limit=budgets["long_term_memory"],
+                max_candidates=20,
+            )
+
+        # Document RAG
+        knowledge_block = self.document_rag.build_knowledge_context(
             query=user_prompt,
-            token_limit=budgets["long_term_memory"],
-            max_candidates=20,
+            token_limit=budgets["knowledge_base"],
+            max_candidates=10,
         )
-
-
-        short_term_memmory = ShortTermMemory(
+        # Short-term memory (chat history)
+        short_term_memory = ShortTermMemory(
             chat_id=self.chat_id,
-            token_limit=budgets["short_term_memory"]
+            token_limit=budgets["short_term_memory"],
         )
+        short_term_messages = short_term_memory.collect()
 
-        short_term_messages = short_term_memmory.collect()
-
+        # Build prompt
         messages = self.prompt_builder.build_messages(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             short_term_memory=short_term_messages,
-            long_term_memory=memory_block
+            long_term_memory=memory_block,
+            knowledge_block=knowledge_block,  # ✨ document injection here
         )
 
-        self.memory.store_from_message(self.chat_id, user_prompt)
+        # Background memory write
+        if not self.is_temporary:
+            self.memory.store_from_message(self.chat_id, user_prompt)
 
+        # Stream LLM output
         for token in self.llm.stream(messages):
             yield token
+
 
 
 class PromptBuilder:
@@ -106,32 +122,38 @@ class PromptBuilder:
         self,
         system_prompt: str,
         user_prompt: str,
-        long_term_memory: str,
-        short_term_memory: list | None = None
+        short_term_memory: list | None = None,
+        long_term_memory: str | None = None,
+        knowledge_block: str | None = None,
     ):
+            messages = [{"role": "system", "content": system_prompt}]
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-        ]
+            if long_term_memory:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "The following facts are long-term memories about the user. "
+                        "Use them when relevant.\n\n"
+                        f"{long_term_memory}"
+                    ),
+                })
 
-        if long_term_memory:
-            messages.append({
-                "role": "system",
-                "content": (
-                    "The following facts are long‑term memories about the user. "
-                    "Use them when relevant.\n\n"
-                    f"{long_term_memory}"
-                )
-            })
+            if knowledge_block:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "The following information is extracted from the user's uploaded documents "
+                        "for this chat. Treat it as authoritative reference when relevant.\n\n"
+                        f"{knowledge_block}"
+                    ),
+                })
 
-        if short_term_memory:
-            messages.extend(short_term_memory)
+            if short_term_memory:
+                messages.extend(short_term_memory)
 
-        messages.append(
-            {"role": "user", "content": user_prompt}
-        )
+            messages.append({"role": "user", "content": user_prompt})
+            return messages
 
-        return messages
     
 
 class ChatTitleGenerator:

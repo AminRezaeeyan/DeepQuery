@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'users',
     'ai_core',
     'chats',
+    'documents',
 ]
 
 MIDDLEWARE = [
