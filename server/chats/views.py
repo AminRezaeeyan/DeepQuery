@@ -12,6 +12,8 @@ from ai_core.exceptions import ProviderUnavailable, ContextLimitExceededError
 from chats.services.chat_service import ChatService
 from chats.pagination import ChatCursorPagination, MessageCursorPagination
 
+from subscriptions.services import SubscriptionService, SubscriptionLimitExceeded
+
 from .models import Chat, Message
 from .serializers import (
     ChatSerializer,
@@ -85,6 +87,11 @@ class ChatViewSet(viewsets.ModelViewSet):
 
         elif request.method == "POST":
 
+            try:
+                SubscriptionService.check_message_limit(request.user)
+            except SubscriptionLimitExceeded as e:
+                raise ValidationError(str(e))
+
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
@@ -136,6 +143,11 @@ class MessageViewSet(
 
     def update(self, request, *args, **kwargs):
         message = self.get_object()
+
+        try:
+            SubscriptionService.check_message_limit(request.user)
+        except SubscriptionLimitExceeded as e:
+            raise ValidationError(str(e))
 
         serializer = self.get_serializer(data=request.data, instance=message, partial=True)
         serializer.is_valid(raise_exception=True)

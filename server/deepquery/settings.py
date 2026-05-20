@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'ai_core',
     'chats',
     'documents',
+    'subscriptions',
 ]
 
 MIDDLEWARE = [
@@ -149,3 +150,7 @@ CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 60 * 60  # 1 hour
 CELERY_TASK_ACKS_LATE = True
+
+# ZARINPAL SETTINGS
+ZARINPAL_MERCHANT_ID = "YOUR_MERCHANT_ID_HERE" # Get this from Zarinpal
+ZARINPAL_SANDBOX = True # Set to False in production

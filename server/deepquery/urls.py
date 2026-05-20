@@ -23,4 +23,5 @@ urlpatterns = [
     path('api/', include('chats.urls')),
     path('api/', include('ai_core.urls')),
     path('api/', include('documents.urls')),
+    path('api/subscriptions/', include('subscriptions.urls')),
 ]
