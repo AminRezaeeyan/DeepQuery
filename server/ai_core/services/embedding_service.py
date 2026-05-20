@@ -195,7 +195,7 @@ class EmbeddingService:
         """
         Vector search using pgvector.
         Returns:
-            List of tuples: (instance, score)
+            List of tuples: (instance, score, text)
         """
         query_vec = self.embed_query(query)
         params = [query_vec]
@@ -205,7 +205,8 @@ class EmbeddingService:
             SELECT
                 c.id,
                 c.embedded_object_id,
-                1 - (c.embedding <=> %s::vector) AS score
+                1 - (c.embedding <=> %s::vector) AS score,
+                c.text
             FROM ai_core_embeddingchunk c
         """
         
@@ -240,11 +241,11 @@ class EmbeddingService:
             rows = cur.fetchall()
 
         results = []
-        for chunk_id, eo_id, score in rows:
+        for chunk_id, eo_id, score, text in rows:
             eo = EmbeddedObject.objects.select_related("content_type").get(id=eo_id)
             obj = eo.content_type.get_object_for_this_type(id=eo.object_id)
-            print(obj, score)
-            results.append((obj, score))
+            results.append((obj, score, text))
+
 
         return results
 

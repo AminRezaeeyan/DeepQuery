@@ -62,9 +62,8 @@ class AITaskConfig(models.Model):
     TASK_CHOICES = [
         ("chat", "Chat"),
         ("title_generation", "Chat Title Generation"),
-        ("summarization", "Summarization"),
+        ("web_query_generation", "Web Query Generation"),
         ("fact_extraction", "Fact Extraction"),
-        ("embedding", "Embedding Generation"),
     ]
 
     task_type = models.CharField(max_length=50, choices=TASK_CHOICES)

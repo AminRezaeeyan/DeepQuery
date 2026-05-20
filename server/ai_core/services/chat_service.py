@@ -4,6 +4,7 @@ from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.memory.short_term_memory import ShortTermMemory
 from ai_core.services.memory.long_term_memory import LongTermMemoryService
 from ai_core.services.document_rag_service import DocumentRAGService
+from ai_core.services.web_search_service import WebKnowledgeService
 
 class ChatGenerationService:
     """
@@ -16,25 +17,31 @@ class ChatGenerationService:
     - calling LLMService as the final step
     """
 
-    def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False):
+    def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False, enable_web_search=True):
         self.user_id = user_id
         self.chat_id = chat_id
         self.is_temporary = is_temporary
+        self.enable_web_search = enable_web_search
         self.llm = LLMService(provider_id=provider_id, task_type='chat')
         self.provider_config = self.llm.provider_config
         self.prompt_builder = PromptBuilder(self.provider_config.max_context_tokens)
         self.memory = LongTermMemoryService(user_id=user_id, enabled= not is_temporary)
         self.document_rag = DocumentRAGService(chat_id=chat_id)
+        self.web_service = WebKnowledgeService(chat_id, user_id)
 
     def stream_answer(self, user_prompt: str):
         system_prompt = (
-            "You are a helpful AI assistant. "
-            "Provide accurate, clear, and concise answers."
+            "You are a helpful research assistant. Provide accurate, clear, and concise answers. "
+            "You MUST cite your sources based on the provided context using bracketed numbers (e.g., [1], [2])."
         )
 
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
-        # Long-term memory (skip if temporary)
+         # 1. Fetch, clean, and embed web data directly into the unified vector DB
+        if self.enable_web_search:
+            self.web_service.gather_and_embed(prompt=user_prompt)
+
+        # 2. Long-term memory (skip if temporary)
         memory_block = ""
         if not self.is_temporary:
             memory_block = self.memory.build_memory_context(
@@ -43,40 +50,71 @@ class ChatGenerationService:
                 max_candidates=20,
             )
 
-        # Document RAG
-        knowledge_block = self.document_rag.build_knowledge_context(
+        # 3. Unified Document RAG (Retrieves both File and Web chunks)
+        # Using the entire knowledge_base budget since web and files are merged
+        _, rag_results = self.document_rag.build_knowledge_context(
             query=user_prompt,
             token_limit=budgets["knowledge_base"],
-            max_candidates=10,
+            max_candidates=15,
         )
-        # Short-term memory (chat history)
+
+        # 4. Format Context & Generate Citation Map
+        formatted_knowledge_block = ""
+        citation_map = {}
+        
+        if rag_results:
+            doc_counter = 1
+            # Unpacking Document instance and score based on DocumentRAGService
+            for obj, score, text in rag_results:
+                doc_id = obj.id
+                if doc_id not in citation_map:
+                    citation_map[doc_id] = {
+                        "cite_id": doc_counter,
+                        "url": getattr(obj, "source_url", None),
+                        "filename": getattr(obj, "original_filename", "File")
+                    }
+                    doc_counter += 1
+                    
+                cite_id = citation_map[doc_id]["cite_id"]
+
+                if text:
+                    formatted_knowledge_block += f"--- Source [{cite_id}] ---\n{text}\n\n"
+
+        # 5. Short-term memory (chat history)
         short_term_memory = ShortTermMemory(
             chat_id=self.chat_id,
             token_limit=budgets["short_term_memory"],
         )
         short_term_messages = short_term_memory.collect()
 
-        # Build prompt
+        # 6. Build final prompt
         messages = self.prompt_builder.build_messages(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             short_term_memory=short_term_messages,
             long_term_memory=memory_block,
-            knowledge_block=knowledge_block,  # ✨ document injection here
+            knowledge_block=formatted_knowledge_block,
         )
 
         # Background memory write
         if not self.is_temporary:
             self.memory.store_from_message(self.chat_id, user_prompt)
-
+        print(messages)
         # Stream LLM output
         for token in self.llm.stream(messages):
             yield token
 
+        # 8. Append References List at the end of the stream
+        if citation_map:
+            yield "\n\n**References:**\n"
+            sorted_cites = sorted(citation_map.values(), key=lambda x: x["cite_id"])
+            for cit in sorted_cites:
+                source_name = cit["url"] if cit["url"] else cit["filename"]
+                yield f"[{cit['cite_id']}] {source_name}\n"
+
 
 
 class PromptBuilder:
-
     BASE_LIMIT_RATIO = 0.8
     LONG_TERM_MEMORY_TOKENS = 500
 
@@ -91,11 +129,7 @@ class PromptBuilder:
         ]
 
         base_tokens = TokenService.count_message_list(base_messages)
-
-        available_budget = TokenService.get_available_budget(
-            self.max_context_tokens
-        )
-
+        available_budget = TokenService.get_available_budget(self.max_context_tokens)
         base_limit = int(available_budget * self.BASE_LIMIT_RATIO)
 
         if base_tokens > base_limit:
@@ -108,6 +142,7 @@ class PromptBuilder:
         long_term_budget = min(self.LONG_TERM_MEMORY_TOKENS, remaining)
         remaining -= long_term_budget
 
+        # Unified Knowledge budget (no longer split)
         knowledge_budget = remaining // 2
         short_term_budget = remaining - knowledge_budget
 
@@ -126,34 +161,34 @@ class PromptBuilder:
         long_term_memory: str | None = None,
         knowledge_block: str | None = None,
     ):
-            messages = [{"role": "system", "content": system_prompt}]
+        messages = [{"role": "system", "content": system_prompt}]
 
-            if long_term_memory:
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "The following facts are long-term memories about the user. "
-                        "Use them when relevant.\n\n"
-                        f"{long_term_memory}"
-                    ),
-                })
+        if long_term_memory:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "The following facts are long-term memories about the user. "
+                    "Use them when relevant.\n\n"
+                    f"{long_term_memory}"
+                ),
+            })
 
-            if knowledge_block:
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "The following information is extracted from the user's uploaded documents "
-                        "for this chat. Treat it as authoritative reference when relevant.\n\n"
-                        f"{knowledge_block}"
-                    ),
-                })
+        if knowledge_block:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "The following information is extracted from the user's uploaded documents "
+                    "and requested web searches. Treat it as authoritative reference. "
+                    "Always cite the Source ID when using this information.\n\n"
+                    f"{knowledge_block}"
+                ),
+            })
 
-            if short_term_memory:
-                messages.extend(short_term_memory)
+        if short_term_memory:
+            messages.extend(short_term_memory)
 
-            messages.append({"role": "user", "content": user_prompt})
-            return messages
-
+        messages.append({"role": "user", "content": user_prompt})
+        return messages
     
 
 class ChatTitleGenerator:

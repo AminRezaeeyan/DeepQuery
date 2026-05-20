@@ -15,6 +15,7 @@ class DocumentRAGService:
     def __init__(self, chat_id: int , provider_id: Optional[int] = None):
         self.chat_id = chat_id
         self.embedding_service = EmbeddingService(provider_id=provider_id)
+        self.last_results: List[Tuple[Document, float]] = [] 
 
     def search(
         self,
@@ -34,46 +35,50 @@ class DocumentRAGService:
             tag=tag,
         )
 
+
+        self.last_results = results
         return results
 
 
     def build_knowledge_context(
-        self,
-        query: str,
-        token_limit: int,
-        max_candidates: int = 10,
-    ) -> str:
-        """
-        Gathers top document chunks for RAG context,
-        truncated to fit within token_limit.
-        """
-        if token_limit <= 0:
-            return ""
+            self,
+            query: str,
+            token_limit: int,
+            max_candidates: int = 10,
+        ) -> Tuple[str, List[Tuple[Document, float]]]:
+            """
+            Gathers top document chunks for RAG context,
+            truncated to fit within token_limit.
+            Returns a tuple: (knowledge_context_string, sorted_results).
+            """
+            if token_limit <= 0:
+                return "", []
 
-        results = self.search(query, limit=max_candidates)
-        if not results:
-            return ""
+            results = self.search(query, limit=max_candidates)
+            if not results:
+                return "", []
 
-        results.sort(key=lambda x: x[1], reverse=True)
+            sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
+            
+            self.last_results = sorted_results 
 
-        total_tokens = 0
-        selected_chunks: list[str] = []
+            total_tokens = 0
+            selected_chunks: list[str] = []
 
-        for doc, score in results:
-            text = getattr(doc, "extracted_text", None)
-            if not text:
-                continue
-            tok_count = TokenService.count_tokens(text)
-            if total_tokens + tok_count > token_limit:
-                continue
+            for doc, score, text in sorted_results: 
+                if not text:
+                    continue
+                tok_count = TokenService.count_tokens(text)
+                if total_tokens + tok_count > token_limit:
+                    continue
 
-            selected_chunks.append(text.strip())
-            total_tokens += tok_count
+                selected_chunks.append(text.strip())
+                total_tokens += tok_count
 
-        if not selected_chunks:
-            return ""
+            if not selected_chunks:
+                return "", []
 
-        block = "\n\n--- DOCUMENT KNOWLEDGE ---\n\n"
-        block += "\n\n---\n\n".join(selected_chunks)
+            block = "\n\n--- DOCUMENT KNOWLEDGE ---\n\n"
+            block += "\n\n---\n\n".join(selected_chunks)
 
-        return block
+            return block, sorted_results

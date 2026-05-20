@@ -140,6 +140,7 @@ SIMPLE_JWT = {
 }
 
 GOOGLE_CLIENT_ID = "fake-google-client-id"
+SERPER_API_KEY = "fake-id"
 
 # Celery / Redis config
 CELERY_BROKER_URL = "redis://localhost:6379/0"
@@ -148,4 +149,3 @@ CELERY_RESULT_BACKEND = "redis://localhost:6379/0"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_TASK_TIME_LIMIT = 60 * 60  # 1 hour
 CELERY_TASK_ACKS_LATE = True
-

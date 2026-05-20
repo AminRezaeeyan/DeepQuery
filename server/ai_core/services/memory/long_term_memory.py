@@ -52,7 +52,7 @@ class LongTermMemoryService:
 
         filtered = [
             instance
-            for instance, score in results
+            for instance, score, text in results
             if score >= min_score and instance.user_id == self.user_id
         ]
 
