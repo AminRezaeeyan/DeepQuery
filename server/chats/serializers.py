@@ -8,7 +8,7 @@ from ai_core.services.provider_service import ProviderService
 class MessageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Message
-        fields = ['uuid', 'role', 'content', 'created_at']
+        fields = ['uuid', 'role', 'content','image', 'created_at']
         read_only_fields = ['uuid', 'role','created_at']
 
 

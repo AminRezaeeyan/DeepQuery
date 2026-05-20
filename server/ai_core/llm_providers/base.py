@@ -16,5 +16,5 @@ class LLMProviderBase:
     def __init__(self, provider_config):
         self.provider_config = provider_config
 
-    def stream(self, messages):
+    def stream(self, messages, image_bytes=None, mime_type=None):
         raise NotImplementedError

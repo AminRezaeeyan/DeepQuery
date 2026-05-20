@@ -33,6 +33,11 @@ class LLMProvider(models.Model):
         help_text="Maximum context window for this model"
     )
 
+    supports_vision = models.BooleanField(
+        default=False, 
+        help_text="Does this model support image inputs?"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)

@@ -29,7 +29,7 @@ class ChatGenerationService:
         self.document_rag = DocumentRAGService(chat_id=chat_id)
         self.web_service = WebKnowledgeService(chat_id, user_id)
 
-    def stream_answer(self, user_prompt: str):
+    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None):
         system_prompt = (
             "You are a helpful research assistant. Provide accurate, clear, and concise answers. "
             "You MUST cite your sources based on the provided context using bracketed numbers (e.g., [1], [2])."
@@ -101,7 +101,7 @@ class ChatGenerationService:
             self.memory.store_from_message(self.chat_id, user_prompt)
         print(messages)
         # Stream LLM output
-        for token in self.llm.stream(messages):
+        for token in self.llm.stream(messages, image_bytes=image_bytes, mime_type=mime_type):
             yield token
 
         # 8. Append References List at the end of the stream
