@@ -1,58 +1,57 @@
 from django.forms import ValidationError
-from rest_framework import viewsets, views, status
+from rest_framework import viewsets, views, status, mixins, generics
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import Plan, Payment
-from .serializers import PlanSerializer
+from .serializers import PaymentInitiateSerializer, PaymentVerifySerializer, PlanSerializer, UserSubscriptionSerializer
 from .services import SubscriptionService
 
-class PlanViewSet(viewsets.ReadOnlyModelViewSet):
+class PlanViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     queryset = Plan.objects.all()
     serializer_class = PlanSerializer
 
-class MySubscriptionView(views.APIView):
+
+class MySubscriptionView(generics.RetrieveAPIView):
+    serializer_class = UserSubscriptionSerializer
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        plan = SubscriptionService.get_user_plan(request.user)
-        return Response({
-            "current_plan": plan.name,
-            "daily_message_limit": plan.daily_message_limit,
-            "daily_document_limit": plan.daily_document_limit,
-        })
+    def get_object(self):
+        return self.request.user.subscription
+
 
 class PaymentView(views.APIView):
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        plan_id = request.data.get('plan_id')
-        if not plan_id:
-            return Response({"error": "plan_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        serializer = PaymentInitiateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-        try:
-            plan = Plan.objects.get(id=plan_id)
-            service = SubscriptionService()
-            payment_info = service.initiate_zarinpal_payment(request.user, plan, request)
-            return Response(payment_info, status=status.HTTP_200_OK)
-        except Plan.DoesNotExist:
-            return Response({"error": "Plan not found."}, status=status.HTTP_404_NOT_FOUND)
-        except ValidationError as e:
-            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        plan = serializer.validated_data["plan_id"]
+
+        payment_info = SubscriptionService.initiate_zarinpal_payment(
+            user=request.user,
+            plan=plan,
+            request=request
+        )
+
+        return Response(payment_info)
+
 
 
 class PaymentVerifyView(views.APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-    def get(self, request, *args, **kwargs):
-        authority = request.query_params.get('Authority')
-        zarinpal_status = request.query_params.get('Status')
+    def get(self, request):
+        serializer = PaymentVerifySerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
 
-        if not authority or not zarinpal_status:
-            return Response({"error": "Missing Authority or Status from callback."}, status=status.HTTP_400_BAD_REQUEST)
+        authority = serializer.validated_data["Authority"]
+        status_param = serializer.validated_data["Status"]
 
-        service = SubscriptionService()
-        try:
-            result = service.verify_zarinpal_payment(authority=authority, status=zarinpal_status)
-            return Response(result, status=status.HTTP_200_OK)
-        except ValidationError as e:
-            return Response({"error": e.detail}, status=status.HTTP_400_BAD_REQUEST)
+        result = SubscriptionService.verify_zarinpal_payment(
+            authority=authority,
+            status=status_param
+        )
+
+        return Response(result)
+

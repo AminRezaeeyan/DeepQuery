@@ -2,11 +2,14 @@ from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.decorators import action
 
 from .models import Document
 from .serializers import DocumentSerializer
 from .tasks import extract_and_index_document
+
+from subscriptions.services import SubscriptionService, SubscriptionLimitExceeded
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -19,7 +22,13 @@ class DocumentViewSet(viewsets.ModelViewSet):
         return Document.objects.filter(user=self.request.user)
 
     def perform_create(self, serializer):
+        try:
+            SubscriptionService.check_document_limit(self.request.user)
+        except SubscriptionLimitExceeded as e:
+            raise ValidationError(str(e))
         doc = serializer.save()
+
+        SubscriptionService.increment_usage(self.request.user, "document")
         extract_and_index_document.delay(doc.id)
 
     @action(detail=True, methods=["get"])

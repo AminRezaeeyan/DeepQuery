@@ -87,8 +87,12 @@ class ChatViewSet(viewsets.ModelViewSet):
 
         elif request.method == "POST":
 
+            image = serializer.validated_data.get("image")
+
             try:
                 SubscriptionService.check_message_limit(request.user)
+                if image:
+                    SubscriptionService.check_image_limit(request.user)
             except SubscriptionLimitExceeded as e:
                 raise ValidationError(str(e))
 
@@ -117,6 +121,10 @@ class ChatViewSet(viewsets.ModelViewSet):
                 raise ValidationError(str(e))
             except ContextLimitExceededError as e:
                 raise ValidationError(str(e))
+
+            SubscriptionService.increment_usage(request.user, "message")
+            if image:
+                SubscriptionService.increment_usage(request.user, "image")
 
             return StreamingHttpResponse(
                 stream,
