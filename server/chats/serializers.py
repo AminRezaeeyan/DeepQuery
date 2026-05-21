@@ -6,10 +6,16 @@ from ai_core.services.provider_service import ProviderService
 
 
 class MessageSerializer(serializers.ModelSerializer):
+    enable_web_search = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False
+    )
+
     class Meta:
         model = Message
-        fields = ['uuid', 'role', 'content','image', 'created_at']
-        read_only_fields = ['uuid', 'role','created_at']
+        fields = [ 'uuid', 'role', 'content', 'image', 'enable_web_search', 'created_at']
+        read_only_fields = ['uuid', 'role', 'created_at']
 
 
 class MessageUpdateSerializer(serializers.ModelSerializer):

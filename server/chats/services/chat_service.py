@@ -25,10 +25,10 @@ class ChatService:
         )
     
     @staticmethod
-    def generate_stream(chat, user_message):
+    def generate_stream(chat, user_message, enable_web_search=False):
  
         try:
-            chat_service = ChatGenerationService(chat.user_id, chat.id, chat.provider_id, is_temporary=chat.is_temporary)
+            chat_service = ChatGenerationService(chat.user_id, chat.id, chat.provider_id, is_temporary=chat.is_temporary, enable_web_search=enable_web_search)
         except ProviderUnavailable:
             raise
                 

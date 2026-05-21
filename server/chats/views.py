@@ -87,7 +87,11 @@ class ChatViewSet(viewsets.ModelViewSet):
 
         elif request.method == "POST":
 
+            serializer = MessageSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
             image = serializer.validated_data.get("image")
+            enable_web_search = serializer.validated_data.get("enable_web_search", False)
 
             try:
                 SubscriptionService.check_message_limit(request.user)
@@ -96,8 +100,6 @@ class ChatViewSet(viewsets.ModelViewSet):
             except SubscriptionLimitExceeded as e:
                 raise ValidationError(str(e))
 
-            serializer = MessageSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
 
             if chat.is_deleted:
                 raise ValidationError("Chat has been deleted.")
@@ -115,7 +117,7 @@ class ChatViewSet(viewsets.ModelViewSet):
                 generate_chat_title.delay(chat.id, user_message.id)
 
             try:
-                stream = ChatService.generate_stream(chat, user_message)
+                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search)
 
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))
