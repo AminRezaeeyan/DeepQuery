@@ -90,8 +90,13 @@ class ChatViewSet(viewsets.ModelViewSet):
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            image = serializer.validated_data.get("image")
-            enable_web_search = serializer.validated_data.get("enable_web_search", False)
+            data = serializer.validated_data
+            image = data.get("image")
+            enable_web_search = data.get("enable_web_search", False)
+            strict_quote_mode = data.get("strict_quote_mode", False)
+            audience_type = data.get("audience_type", "General")
+            reasoning_depth = data.get("reasoning_depth", "Medium")
+            challenge_mode = data.get("challenge_mode", False)
 
             try:
                 SubscriptionService.check_message_limit(request.user)
@@ -117,7 +122,7 @@ class ChatViewSet(viewsets.ModelViewSet):
                 generate_chat_title.delay(chat.id, user_message.id)
 
             try:
-                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search)
+                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode)
 
             except ProviderUnavailable as e:
                 raise ValidationError(str(e))

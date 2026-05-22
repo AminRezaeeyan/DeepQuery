@@ -6,16 +6,22 @@ from ai_core.services.provider_service import ProviderService
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    enable_web_search = serializers.BooleanField(
-        write_only=True,
-        required=False,
-        default=False
-    )
+    enable_web_search = serializers.BooleanField(write_only=True, required=False, default=False)
+    strict_quote_mode = serializers.BooleanField(write_only=True, required=False, default=False)
+    challenge_mode = serializers.BooleanField(write_only=True, required=False, default=False)
+    audience_type = serializers.CharField(write_only=True, required=False, default="General")
+    reasoning_depth = serializers.CharField(write_only=True, required=False, default="Medium")
 
     class Meta:
         model = Message
-        fields = [ 'uuid', 'role', 'content', 'image', 'enable_web_search', 'created_at']
+        fields = [
+            'uuid', 'role', 'content', 'image', 'enable_web_search', 
+            'strict_quote_mode', 'challenge_mode', 'audience_type', 
+            'reasoning_depth', 'created_at'
+        ]
         read_only_fields = ['uuid', 'role', 'created_at']
+
+
 
 
 class MessageUpdateSerializer(serializers.ModelSerializer):

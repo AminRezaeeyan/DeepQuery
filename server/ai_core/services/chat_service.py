@@ -17,7 +17,7 @@ class ChatGenerationService:
     - calling LLMService as the final step
     """
 
-    def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False, enable_web_search=True):
+    def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type="General", reasoning_depth="Medium", challenge_mode=False):
         self.user_id = user_id
         self.chat_id = chat_id
         self.is_temporary = is_temporary
@@ -28,13 +28,38 @@ class ChatGenerationService:
         self.memory = LongTermMemoryService(user_id=user_id, enabled= not is_temporary)
         self.document_rag = DocumentRAGService(chat_id=chat_id)
         self.web_service = WebKnowledgeService(chat_id, user_id)
+        self.strict_quote_mode = strict_quote_mode
+        self.audience_type = audience_type
+        self.reasoning_depth = reasoning_depth
+        self.challenge_mode = challenge_mode
 
-    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None):
-        system_prompt = (
-            "You are a helpful research assistant. Provide accurate, clear, and concise answers. "
-            "You MUST cite your sources based on the provided context using bracketed numbers (e.g., [1], [2])."
+    def _get_system_prompt(self):
+        depth_instruction = {
+            "Low": "Provide a concise summary in 2-3 sentences.",
+            "Medium": "Provide a clear, balanced explanation.",
+            "High": "Provide an exhaustive, multi-section analysis with deep logical derivation."
+        }
+        
+        prompt = (
+            f"You are an expert Research Assistant. Tailor your tone to an {self.audience_type} audience.\n"
+            "RULES:\n"
+            "1. EVIDENCE-BASED: Rely EXCLUSIVELY on the provided context. If an answer isn't in the context, state it.\n"
+            "2. CITATION: You MUST cite claims using [Source ID] (e.g., [1]). If multiple support a claim, use [1][2].\n"
+            "3. CONFLICTS: If sources contradict, highlight it: 'Source [1] says X, but Source [2] says Y.'\n"
+            f"4. DEPTH: {depth_instruction.get(self.reasoning_depth, depth_instruction['Medium'])}\n"
         )
+        
+        if self.strict_quote_mode:
+            prompt += "5. STRICT QUOTE: Include direct verbatim quotes for every major claim.\n"
+        
+        if self.challenge_mode:
+            prompt += "6. CHALLENGE: Critically analyze your synthesis for gaps, biases, or missing perspectives.\n"
+            
+        return prompt
 
+        
+    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None):
+        system_prompt = self._get_system_prompt()
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
          # 1. Fetch, clean, and embed web data directly into the unified vector DB
