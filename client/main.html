@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main</title>
+    <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body>
+    <div class="auth-card">
+        <h1 id="welcome-title">Hello</h1>
+        <p id="welcome-subtitle"></p>
+        <button onclick="logout()">Logout</button>
+    </div>
+
+    <script>
+        const access = localStorage.getItem("access");
+
+        if (!access) {
+            window.location.href = "login.html";
+        } else {
+            const firstName = localStorage.getItem("user_name") || "";
+            const lastName = localStorage.getItem("user_last_name") || "";
+            document.getElementById("welcome-title").innerText =
+                `Hello ${firstName} ${lastName}`.trim();
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = "login.html";
+        }
+    </script>
+</body>
+</html>
