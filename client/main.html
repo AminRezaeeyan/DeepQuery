@@ -3,26 +3,120 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Main</title>
-    <link rel="stylesheet" href="assets/css/styles.css">
+    <title>AI Research Assistant</title>
+    <link rel="stylesheet" href="assets/css/base.css">
+    <link rel="stylesheet" href="assets/css/chat.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="auth-card">
-        <h1 id="welcome-title">Hello</h1>
-        <p id="welcome-subtitle"></p>
-        <button onclick="logout()">Logout</button>
+    <div class="chat-container">
+        <!-- Left Sidebar -->
+        <aside class="sidebar sidebar-left" id="leftSidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <img src="assets/images/logo.svg" alt="AI Research Assistant">
+                </div>
+            </div>
+
+            <div class="user-info">
+                <div class="user-details">
+                    <h3 id="userName">Loading...</h3>
+                    <div class="plan-info">
+                        <span id="planName">Free Plan</span>
+                        <a href="plans.html" class="upgrade-link">Upgrade</a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-actions">
+                <button class="new-chat-btn" id="newChatBtn">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    New Chat
+                </button>
+                <button class="search-btn" id="searchBtn" aria-label="Search chats">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="search-box" id="searchBox">
+                <input type="text" id="searchInput" placeholder="Search chats...">
+                <button class="close-search" id="closeSearch">×</button>
+            </div>
+
+            <div class="chat-history" id="chatHistory">
+                <div class="loading">Loading chats...</div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-main">
+            <div class="chat-header">
+                <h1 id="chatTitle">New Chat</h1>
+            </div>
+
+            <div class="messages-container" id="messagesContainer">
+                <div class="welcome-screen">
+                    <h2 id="welcomeTitle">Hello</h2>
+                    <p>Start a conversation with your AI research assistant</p>
+                </div>
+            </div>
+
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <button class="attach-btn" id="attachBtn" aria-label="Attach image">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                        </svg>
+                    </button>
+                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    <button class="send-btn" id="sendBtn" aria-label="Send message">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="image-preview" id="imagePreview" style="display: none;">
+                    <img id="previewImg" src="" alt="Preview">
+                    <button class="remove-image" id="removeImage">×</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Sidebar -->
+        <aside class="sidebar sidebar-right" id="rightSidebar">
+            <div class="sidebar-header">
+                <h3>Documents</h3>
+            </div>
+
+            <div class="documents-list" id="documentsList">
+                <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
+                    </svg>
+                    <p>No documents yet</p>
+                </div>
+            </div>
+        </aside>
     </div>
 
+    <script src="js/chat.js"></script>
     <script>
+        // Initialize on load
         const access = localStorage.getItem("access");
-
         if (!access) {
             window.location.href = "login.html";
         } else {
             const firstName = localStorage.getItem("user_name") || "";
             const lastName = localStorage.getItem("user_last_name") || "";
-            document.getElementById("welcome-title").innerText =
-                `Hello ${firstName} ${lastName}`.trim();
+            const welcomeText = `Hello ${firstName} ${lastName}`.trim();
+            document.getElementById("welcomeTitle").innerText = welcomeText || "Hello";
         }
 
         function logout() {
