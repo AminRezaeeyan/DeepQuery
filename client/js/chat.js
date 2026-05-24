@@ -278,10 +278,12 @@ class ChatApp {
         
         if (messages.length === 0) {
             container.innerHTML = `
+                <div class="messages-container" id="messagesContainer">
                 <div class="welcome-screen">
-                    <h2>Start chatting</h2>
-                    <p>Send a message to begin the conversation</p>
+                    <img src="assets/images/logo.svg" alt="">
+                    <p>How can I help you today?</p>
                 </div>
+            </div>
             `;
             return;
         }
@@ -453,9 +455,11 @@ class ChatApp {
         const welcomeText = `Hello ${firstName} ${lastName}`.trim();
         
         container.innerHTML = `
-            <div class="welcome-screen">
-                <h2>${welcomeText || 'Hello'}</h2>
-                <p>Start a conversation with your AI research assistant</p>
+             <div class="messages-container" id="messagesContainer">
+                <div class="welcome-screen">
+                    <img src="assets/images/logo.svg" alt="">
+                    <p>How can I help you today?</p>
+                </div>
             </div>
         `;
         document.getElementById('chatTitle').textContent = 'New Chat';
