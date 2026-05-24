@@ -14,7 +14,7 @@
         <aside class="sidebar sidebar-left" id="leftSidebar">
             <div class="sidebar-header">
                 <div class="logo">
-                    <img src="assets/images/logo.svg" alt="AI Research Assistant">
+                    <img src="assets/images/logo.svg" alt="AI Research Assistant" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiM0YTU1NjgiLz48L3N2Zz4='">
                 </div>
             </div>
 
@@ -56,34 +56,60 @@
         <!-- Main Chat Area -->
         <main class="chat-main">
             <div class="chat-header">
-                <h1 id="chatTitle">New Chat</h1>
+                <!-- Left: Model Selector -->
+                <div class="chat-header-left">
+                    <div class="custom-select-container" id="modelSelectContainer">
+                        <div class="custom-select-trigger" id="modelSelectTrigger">
+                            <div class="selected-model-info" id="selectedModelInfo">Loading models...</div>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                            </svg>
+                        </div>
+                        <div class="custom-select-dropdown" id="modelSelectDropdown">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Middle: Title -->
+                <div class="chat-header-center">
+                    <h1 id="chatTitle">New Chat</h1>
+                </div>
+
+                <!-- Right: Temporary Toggle -->
+                <div class="chat-header-right">
+                    <div class="temp-chat-wrapper" title="When activated, it won't use long term memory and messages won't be stored.">
+                        <span class="temp-label">Temp Chat</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="tempChatToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
             <div class="messages-container" id="messagesContainer">
                 <div class="welcome-screen">
-                    <img src="assets/images/logo.svg" alt="">
                     <p>How can I help you today?</p>
                 </div>
             </div>
 
             <div class="input-area">
                 <div class="input-wrapper">
-                    <button class="attach-btn" id="attachBtn" aria-label="Attach image">
+                    <button class="attach-btn" id="attachBtn" aria-label="Attach document">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
                         </svg>
                     </button>
-                    <input type="file" id="imageInput" accept="image/*" style="display: none;">
+                    <input type="file" id="fileInput" accept=".txt,.pdf,.csv,.xlsx,.py,.js,.ts,.java,.c,.cpp,.json,.md" style="display: none;">
+                    
                     <textarea id="messageInput" placeholder="Type your message..." rows="1"></textarea>
+                    
                     <button class="send-btn" id="sendBtn" aria-label="Send message">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
                         </svg>
                     </button>
-                </div>
-                <div class="image-preview" id="imagePreview" style="display: none;">
-                    <img id="previewImg" src="" alt="Preview">
-                    <button class="remove-image" id="removeImage">×</button>
                 </div>
             </div>
         </main>
@@ -107,22 +133,5 @@
     </div>
 
     <script src="js/chat.js"></script>
-    <script>
-        // Initialize on load
-        const access = localStorage.getItem("access");
-        if (!access) {
-            window.location.href = "login.html";
-        } else {
-            const firstName = localStorage.getItem("user_name") || "";
-            const lastName = localStorage.getItem("user_last_name") || "";
-            const welcomeText = `Hello ${firstName} ${lastName}`.trim();
-            document.getElementById("welcomeTitle").innerText = welcomeText || "Hello";
-        }
-
-        function logout() {
-            localStorage.clear();
-            window.location.href = "login.html";
-        }
-    </script>
 </body>
 </html>
