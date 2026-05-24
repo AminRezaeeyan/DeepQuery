@@ -5,7 +5,7 @@ from ai_core.services.provider_service import ProviderService
 
 class LLMService:
 
-    def __init__(self, task_type=None, provider_id=None):
+    def __init__(self, task_type=None, provider_id=None, image_bytes=None, mime_type=None):
         if provider_id:
             provider_config = ProviderService.get_chat_provider(provider_id)
         else:

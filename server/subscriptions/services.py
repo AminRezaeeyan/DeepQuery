@@ -49,9 +49,9 @@ class SubscriptionService:
         now = timezone.now()
 
         if usage.last_reset < now - timedelta(days=1):
-            usage.messages_used = 0
-            usage.documents_used = 0
-            usage.images_used = 0
+            usage.message_count = 0
+            usage.document_count = 0
+            usage.image_count = 0
             usage.last_reset = now
             usage.save()
             
@@ -62,18 +62,18 @@ class SubscriptionService:
         plan = SubscriptionService.get_user_plan(user)
         usage = SubscriptionService.get_usage(user)
 
-        plan_limit = getattr(plan, limit_field)
-        usage_value = getattr(usage, f"{limit_field.replace('_limit', '')}_used")
+        plan_limit = getattr(plan, f'daily_{limit_field}')
+        usage_value = getattr(usage, f"{limit_field.replace('_limit', '')}_count")
 
         if usage_value >= plan_limit:
             raise SubscriptionLimitExceeded(
-                f"You have reached your {limit_field.replace('_limit', '')} limit "
+                f"You have reached your {limit_field.replace('_limit', '')} count "
                 f"({plan_limit}). Upgrade your plan."
             )
 
     @staticmethod
     def check_message_limit(user):
-        SubscriptionService.check_limit(user, "daily_message_limit")
+        SubscriptionService.check_limit(user, "message_limit")
 
     @staticmethod
     def check_document_limit(user):
@@ -90,11 +90,11 @@ class SubscriptionService:
         usage = SubscriptionService.get_usage(user)
 
         if resource_type == "message":
-            usage.messages_used += 1
+            usage.message_count += 1
         elif resource_type == "document":
-            usage.documents_used += 1
+            usage.document_count += 1
         elif resource_type == "image":
-            usage.images_used += 1
+            usage.image_count += 1
         else:
             raise ValidationError("Invalid resource type")
 

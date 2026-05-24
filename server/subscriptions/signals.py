@@ -11,5 +11,4 @@ def create_user_subscription(sender, instance, created, **kwargs):
 
         UserSubscription.objects.create(
             user=instance,
-            plan=free_plan
-        )
+            plan=free_plan)

@@ -21,6 +21,16 @@ class MessageSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['uuid', 'role', 'created_at']
 
+    def create(self, validated_data):
+            web_search = validated_data.pop('enable_web_search', False)
+            strict_quote = validated_data.pop('strict_quote_mode', False)
+            challenge = validated_data.pop('challenge_mode', False)
+            audience = validated_data.pop('audience_type', 'General')
+            reasoning = validated_data.pop('reasoning_depth', 'Medium')
+
+            instance = super().create(validated_data)
+            
+            return instance
 
 
 
