@@ -13,8 +13,11 @@ class ChatApp {
         this.isTemporary = false;
         this.isLoadingMessages = false;
         this.messageCount = 0;
+        this.supportsVision = false;
+        this.selectedImageBase64 = null;
         
-        this.allowedExtensions = ['.txt', '.pdf', '.csv', '.xlsx', '.py', '.js', '.ts', '.java', '.c', '.cpp', '.json', '.md'];
+        this.allowedDocExtensions = ['.txt', '.pdf', '.csv', '.xlsx', '.py', '.js', '.ts', '.java', '.c', '.cpp', '.json', '.md'];
+        this.allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
         
         this.init();
     }
@@ -25,6 +28,7 @@ class ChatApp {
         this.loadModels();
         this.loadChatHistory();
         this.autoResizeTextarea();
+        this.updateFileInputAccept();
     }
 
     getProviderSvg(providerType) {
@@ -38,7 +42,6 @@ class ChatApp {
         } else if (type === 'ollama') {
             return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>`;
         }
-        // Fallback
         return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>`;
     }
 
@@ -82,7 +85,6 @@ class ChatApp {
             this.handleFileSelect(e);
         });
 
-        // Custom Dropdown Event Listeners
         const trigger = document.getElementById('modelSelectTrigger');
         trigger.addEventListener('click', () => {
             if (!trigger.classList.contains('disabled')) {
@@ -96,7 +98,6 @@ class ChatApp {
             }
         });
 
-        // Temp Chat Toggle
         document.getElementById('tempChatToggle').addEventListener('change', async (e) => {
             this.isTemporary = e.target.checked;
             if (this.currentChatId) {
@@ -107,6 +108,23 @@ class ChatApp {
                 }
             }
         });
+
+        const settingsBtn = document.getElementById('msgSettingsBtn');
+        const settingsMenu = document.getElementById('msgSettingsMenu');
+        
+        if (settingsBtn && settingsMenu) {
+            settingsBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                settingsMenu.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!settingsMenu.contains(e.target) && !settingsBtn.contains(e.target)) {
+                    settingsMenu.classList.add('hidden');
+                }
+            });
+        }
     }
 
     autoResizeTextarea() {
@@ -186,6 +204,13 @@ class ChatApp {
     selectModel(model) {
         if (!model) return;
         this.currentProviderId = model.id;
+        this.supportsVision = model.supports_vision || false;
+        
+        this.updateFileInputAccept();
+
+        if (!this.supportsVision && this.selectedImageBase64) {
+            this.removeSelectedImage();
+        }
         
         const triggerInfo = document.getElementById('selectedModelInfo');
         const svg = this.getProviderSvg(model.provider_type);
@@ -195,20 +220,24 @@ class ChatApp {
         `;
     }
 
+    updateFileInputAccept() {
+        const fileInput = document.getElementById('fileInput');
+        let acceptList = [...this.allowedDocExtensions];
+        if (this.supportsVision) {
+            acceptList = acceptList.concat(this.allowedImageExtensions);
+        }
+        fileInput.accept = acceptList.join(',');
+    }
+
     updateHeaderLocks() {
         const hasMessages = this.messageCount > 0;
-        
-        // Lock model select
         const trigger = document.getElementById('modelSelectTrigger');
         if (hasMessages) {
             trigger.classList.add('disabled');
         } else {
             trigger.classList.remove('disabled');
         }
-
-        // Lock temp toggle
-        const tempToggle = document.getElementById('tempChatToggle');
-        tempToggle.disabled = hasMessages;
+        document.getElementById('tempChatToggle').disabled = hasMessages;
     }
 
     async loadChatHistory() {
@@ -288,6 +317,7 @@ class ChatApp {
         this.renderDocuments([]);
         this.renderChatHistory(this.chats);
         this.updateHeaderLocks();
+        this.removeSelectedImage();
     }
 
     async ensureChatExists() {
@@ -325,7 +355,7 @@ class ChatApp {
             const messages = messagesData.results || messagesData;
             
             this.messageCount = messages.length;
-            this.renderMessages(messages);
+            this.renderMessages(messages.slice().reverse());
             this.updateHeaderLocks();
             
             this.loadDocuments();
@@ -343,11 +373,16 @@ class ChatApp {
             this.clearMessages();
             return;
         }
-        messages.forEach(message => this.appendMessage(message.role, message.content));
+        messages.forEach(message => {
+            // Apply formatting for past messages too if needed
+            let formattedContent = this.escapeHtml(message.content);
+            formattedContent = this.formatCitations(formattedContent).replace(/\n/g, '<br>');
+            this.appendMessage(message.role, formattedContent, message.image, true);
+        });
         this.scrollToBottom();
     }
 
-    appendMessage(role, content) {
+    appendMessage(role, content, imageUrl = null, isHtml = false) {
         const container = document.getElementById('messagesContainer');
         const welcomeScreen = container.querySelector('.welcome-screen');
         if (welcomeScreen) welcomeScreen.remove();
@@ -361,8 +396,20 @@ class ChatApp {
         
         const contentDiv = document.createElement('div');
         contentDiv.className = 'message-content';
+
+        if (imageUrl) {
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.className = 'message-image';
+            contentDiv.appendChild(img);
+        }
+
         const textDiv = document.createElement('div');
-        textDiv.textContent = content;
+        if (isHtml) {
+            textDiv.innerHTML = content;
+        } else {
+            textDiv.textContent = content;
+        }
         contentDiv.appendChild(textDiv);
         
         messageDiv.appendChild(avatar);
@@ -372,28 +419,85 @@ class ChatApp {
         this.scrollToBottom();
     }
 
+    createStreamingMessage(role) {
+        const container = document.getElementById('messagesContainer');
+        const welcomeScreen = container.querySelector('.welcome-screen');
+        if (welcomeScreen) welcomeScreen.remove();
+
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${role}`;
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'message-avatar';
+        avatar.textContent = role === 'user' ? 'U' : 'AI';
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'message-content';
+        const textDiv = document.createElement('div');
+        contentDiv.appendChild(textDiv);
+        
+        messageDiv.appendChild(avatar);
+        messageDiv.appendChild(contentDiv);
+        container.appendChild(messageDiv);
+        
+        this.scrollToBottom();
+
+        return textDiv;
+    }
+
+    // New helper method for formatting citations
+    formatCitations(text) {
+        return text.replace(/\[(\d+)\]/g, '<span class="citation" title="Reference $1">$1</span>');
+    }
+
     async sendMessage() {
         const input = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
         const content = input.value.trim();
-        if (!content) return;
+        const hasImage = this.selectedImageBase64 !== null;
+
+        if (!content && !hasImage) return;
         
+        const enableWebSearch = document.getElementById('setWebSearch').checked;
+        const challengeMode = document.getElementById('setChallenge').checked;
+        const strictQuote = document.getElementById('setStrictQuote').checked;
+        const reasoningDepth = document.getElementById('setReasoning').value;
+        const audienceType = document.getElementById('setAudience').value;
+
         try {
+            sendBtn.disabled = true;
             await this.ensureChatExists();
             
             const formData = new FormData();
             formData.append('content', content);
-            formData.append('role', 'user');
+            
+            formData.append('enable_web_search', enableWebSearch);
+            formData.append('challenge_mode', challengeMode);
+            formData.append('strict_quote_mode', strictQuote);
+            formData.append('reasoning_depth', reasoningDepth);
+            formData.append('audience_type', audienceType);
             
             if (this.currentProviderId) {
                 formData.append('provider_id', this.currentProviderId);
             }
+            if (hasImage) {
+                formData.append('image', this.selectedImageBase64);
+            }
             
-            this.appendMessage('user', content);
+            this.appendMessage('user', content, this.selectedImageBase64);
             input.value = '';
             input.style.height = 'auto';
             
             this.messageCount++;
             this.updateHeaderLocks();
+            
+            const assistantTextContainer = this.createStreamingMessage('assistant');
+            assistantTextContainer.innerHTML = `
+                <div class="loading-indicator">
+                    <span class="dot-pulse">●</span> 
+                    ${enableWebSearch ? 'Searching web...' : 'Loading...'}
+                </div>
+            `;
             
             const response = await fetch(`${API_BASE}/chats/${this.currentChatId}/messages/`, {
                 method: 'POST',
@@ -402,15 +506,65 @@ class ChatApp {
             });
             
             if (!response.ok) throw new Error('Failed to send message');
-            const data = await response.json();
             
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            
+            let fullResponse = '';
+            let isFirstChunk = true;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                if (isFirstChunk) {
+                    assistantTextContainer.innerHTML = '';
+                    isFirstChunk = false;
+                }
+
+                const chunk = decoder.decode(value, { stream: true });
+                fullResponse += chunk;
+                
+                let displayText = fullResponse.replace(/^data: /gm, '');
+                
+                const refSplit = displayText.split("**References:**");
+                if (refSplit.length > 1) {
+                    const mainText = refSplit[0].trim();
+                    const refsText = refSplit.slice(1).join("**References:**").trim();
+                    
+                    // Format citations in main text before applying line breaks
+                    const formattedMainText = this.formatCitations(this.escapeHtml(mainText)).replace(/\n/g, '<br>');
+
+                    assistantTextContainer.innerHTML = formattedMainText + `
+                        <div class="references-block">
+                            <div class="references-title">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                                References & Sources
+                            </div>
+                            <div class="references-list">${this.escapeHtml(refsText)}</div>
+                        </div>
+                    `;
+                } else {
+                    // Format citations when there are no references block yet
+                    const formattedDisplayText = this.formatCitations(this.escapeHtml(displayText)).replace(/\n/g, '<br>');
+                    assistantTextContainer.innerHTML = formattedDisplayText;
+                }
+                
+                this.scrollToBottom();
+            }
+
             if (this.messageCount === 1) this.requestChatTitle();
-            if (data.assistant_response) this.appendMessage('assistant', data.assistant_response);
-            
             this.loadChatHistory();
+            
         } catch (error) {
             console.error('Failed to send message:', error);
             alert('Failed to send message. Please try again.');
+            const container = document.getElementById('messagesContainer');
+            if (container.lastChild && container.lastChild.classList.contains('assistant')) {
+                container.lastChild.remove();
+            }
+        } finally {
+            sendBtn.disabled = false;
         }
     }
 
@@ -437,7 +591,36 @@ class ChatApp {
 
     clearMessages() {
         const container = document.getElementById('messagesContainer');
-        container.innerHTML = `<div class="welcome-screen"><p>How can I help you today?</p></div>`;
+        container.innerHTML = `
+            <div class="welcome-screen" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 20px;">
+                <img src="assets/images/logo.svg" alt="">
+                <p style="font-size: 1.2rem; font-weight: 500;">How can I help with your research today?</p>
+                <div class="presets-container">
+                    <button class="preset-btn" data-prompt="Summarize the key findings of recent papers on quantum computing.">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+                        <span>Summarize key findings</span>
+                    </button>
+                    <button class="preset-btn" data-prompt="Explain this complex topic to a general audience.">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+                        <span>Explain a complex topic</span>
+                    </button>
+                    <button class="preset-btn" data-prompt="Draft a literature review outline based on these documents.">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                        <span>Draft literature review</span>
+                    </button>
+                    <button class="preset-btn" data-prompt="Analyze the methodology of the uploaded text.">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        <span>Analyze methodology</span>
+                    </button>
+                </div>
+            </div>`;
+            
+        container.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('messageInput').value = btn.dataset.prompt;
+                this.sendMessage();
+            });
+        });
     }
 
     async loadDocuments() {
@@ -502,10 +685,9 @@ class ChatApp {
                 ${isLoading ? 
                     '<div class="spinner"></div>' : 
                     `<button class="delete-doc-btn" onclick="app.deleteDocument('${doc.uuid}')" title="Remove Document">
-                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-                            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         </svg>
                     </button>`
                 }
@@ -522,8 +704,29 @@ class ChatApp {
         const extMatch = file.name.match(/\.([0-9a-z]+)(?:[\?#]|$)/i);
         const extension = extMatch ? '.' + extMatch[1].toLowerCase() : '';
         
-        if (!this.allowedExtensions.includes(extension)) {
-            alert(`Unsupported file type. Supported: ${this.allowedExtensions.join(', ')}`);
+        const isDoc = this.allowedDocExtensions.includes(extension);
+        const isImg = this.allowedImageExtensions.includes(extension);
+
+        if (!isDoc && !isImg) {
+            alert(`Unsupported file type.`);
+            return;
+        }
+
+        if (isImg && !this.supportsVision) {
+            alert("The selected model does not support image attachments.");
+            return;
+        }
+
+        if (isImg) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                this.selectedImageBase64 = event.target.result;
+                const previewDiv = document.getElementById('imagePreview');
+                const previewImg = document.getElementById('imagePreviewImg');
+                previewImg.src = this.selectedImageBase64;
+                previewDiv.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
             return;
         }
 
@@ -561,6 +764,16 @@ class ChatApp {
             console.error('Failed to upload document:', error);
             alert(`Failed to upload: ${error.message}`);
             this.renderDocuments(this.documents);
+        }
+    }
+
+    removeSelectedImage() {
+        this.selectedImageBase64 = null;
+        const previewDiv = document.getElementById('imagePreview');
+        if(previewDiv) {
+            const previewImg = document.getElementById('imagePreviewImg');
+            if(previewImg) previewImg.src = "";
+            previewDiv.style.display = 'none';
         }
     }
 
