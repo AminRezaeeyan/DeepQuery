@@ -18,6 +18,8 @@ class LLMProvider(models.Model):
 
     name = models.CharField(max_length=100)
 
+    description = models.TextField(blank=True, null=True)
+
     provider_type = models.CharField(max_length=20,choices=PROVIDER_CHOICES)
 
     api_key = models.CharField(max_length=255,blank=True,null=True)

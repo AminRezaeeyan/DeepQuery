@@ -12,7 +12,8 @@ class ModelSerializer(serializers.ModelSerializer):
             "name",
             "provider_type",
             "model_name",
-            "is_default_for_chat",
+            "description",
+            "is_default_for_chat"
         ]
 
     def get_is_default_for_chat(self, obj):
