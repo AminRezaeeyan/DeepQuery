@@ -14,7 +14,8 @@ class ChatApp {
         this.isLoadingMessages = false;
         this.messageCount = 0;
         this.supportsVision = false;
-        this.selectedImageBase64 = null;
+        this.selectedImageBase64 = null; // Used for UI preview only
+        this.selectedImageFile = null;   // Used for sending to the API
         
         this.allowedDocExtensions = ['.txt', '.pdf', '.csv', '.xlsx', '.py', '.js', '.ts', '.java', '.c', '.cpp', '.json', '.md'];
         this.allowedImageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
@@ -374,10 +375,9 @@ class ChatApp {
             return;
         }
         messages.forEach(message => {
-            // Apply formatting for past messages too if needed
-            let formattedContent = this.escapeHtml(message.content); // Escape first for safety
-    formattedContent = this.parseSimpleMarkdown(formattedContent);
-    formattedContent = this.formatCitations(formattedContent);
+            let formattedContent = this.escapeHtml(message.content);
+            formattedContent = this.parseSimpleMarkdown(formattedContent);
+            formattedContent = this.formatCitations(formattedContent);
             this.appendMessage(message.role, formattedContent, message.image, true);
         });
         this.scrollToBottom();
@@ -453,24 +453,18 @@ class ChatApp {
         
         html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:#2d2d2d; color:#ccc; padding:10px; border-radius:5px; overflow-x:auto;"><code>$1</code></pre>');
         
-        // Inline code: `code`
-        html = html.replace(/`([^`]+)`/g, '<code style="background:#ddd; color:#d63384; padding:2px 4px; border-radius:4px;">$1</code>');
+        html = html.replace(/`([^`]+)`/g, '<code style="background:var(--bg-color); color:var(--accent-color); padding:2px 4px; border-radius:4px;">$1</code>');
         
-        // Bold: **text**
-        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*\*([\s\S]+?)\*\*/g, '<strong>$1</strong>');
         
-        // Italic: *text* or _text_
-        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-        html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+        html = html.replace(/\*([^\*]+?)\*/g, '<em>$1</em>');
+        html = html.replace(/_([^_]+?)_/g, '<em>$1</em>');
         
-        // Line breaks
         html = html.replace(/\n/g, '<br>');
         
         return html;
     }
 
-
-    // New helper method for formatting citations
     formatCitations(text) {
         return text.replace(/\[(\d+)\]/g, '<span class="citation" title="Reference $1">$1</span>');
     }
@@ -479,7 +473,7 @@ class ChatApp {
         const input = document.getElementById('messageInput');
         const sendBtn = document.getElementById('sendBtn');
         const content = input.value.trim();
-        const hasImage = this.selectedImageBase64 !== null;
+        const hasImage = this.selectedImageFile !== null; // Use the file for API validation
 
         if (!content && !hasImage) return;
         
@@ -506,12 +500,16 @@ class ChatApp {
                 formData.append('provider_id', this.currentProviderId);
             }
             if (hasImage) {
-                formData.append('image', this.selectedImageBase64);
+                // formData.append('image', this.selectedImageFile);
             }
             
-            this.appendMessage('user', content, this.selectedImageBase64);
+            // Append message to UI using base64 for local rendering
+            this.appendMessage('user', content, this.selectedImageBase64); 
+            
+            // Clear inputs and image preview
             input.value = '';
             input.style.height = 'auto';
+            this.removeSelectedImage();
             
             this.messageCount++;
             this.updateHeaderLocks();
@@ -526,7 +524,11 @@ class ChatApp {
             
             const response = await fetch(`${API_BASE}/chats/${this.currentChatId}/messages/`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('access')}` },
+                headers: { 
+                    'Authorization': `Bearer ${localStorage.getItem('access')}`
+                    // Do NOT set Content-Type to application/json or multipart/form-data here.
+                    // The browser handles it automatically for FormData.
+                },
                 body: formData
             });
             
@@ -557,7 +559,6 @@ class ChatApp {
                     const mainText = refSplit[0].trim();
                     const refsText = refSplit.slice(1).join("**References:**").trim();
                     
-                    // Format citations in main text before applying line breaks
                     const formattedMainText = this.formatCitations(this.escapeHtml(mainText)).replace(/\n/g, '<br>');
 
                     assistantTextContainer.innerHTML = formattedMainText + `
@@ -570,7 +571,6 @@ class ChatApp {
                         </div>
                     `;
                 } else {
-                    // Format citations when there are no references block yet
                     const formattedDisplayText = this.formatCitations(this.escapeHtml(displayText)).replace(/\n/g, '<br>');
                     assistantTextContainer.innerHTML = formattedDisplayText;
                 }
@@ -743,9 +743,11 @@ class ChatApp {
         }
 
         if (isImg) {
+            this.selectedImageFile = file; // <-- Store the actual file for the API
+            
             const reader = new FileReader();
             reader.onload = (event) => {
-                this.selectedImageBase64 = event.target.result;
+                this.selectedImageBase64 = event.target.result; // <-- Used only for UI preview
                 const previewDiv = document.getElementById('imagePreview');
                 const previewImg = document.getElementById('imagePreviewImg');
                 previewImg.src = this.selectedImageBase64;
@@ -793,7 +795,9 @@ class ChatApp {
     }
 
     removeSelectedImage() {
-        this.selectedImageBase64 = null;
+        this.selectedImageFile = null;   // <-- Clear the file
+        this.selectedImageBase64 = null; // <-- Clear the base64 preview
+        
         const previewDiv = document.getElementById('imagePreview');
         if(previewDiv) {
             const previewImg = document.getElementById('imagePreviewImg');
