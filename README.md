@@ -94,17 +94,17 @@ Built with Django Jazzmin, the admin panel provides complete operational control
 
 1. **Clone the repository:**
 ```bash
-   git clone https://github.com/aminrezaeeyan/DeepQuery.git
-   cd DeepQuery/server
+git clone https://github.com/aminrezaeeyan/DeepQuery.git
+cd DeepQuery/server
 ```
 2. **Set up a virtual environment:**
 ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 3. **Install dependencies:**
 ```bash
-    pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
 4. **Environment Variables:**
@@ -112,17 +112,17 @@ Create a .env file in the root directory and add your configurations (Database c
 
 5. **Database Setup:**
 ```python
-       python manage.py makemigrations
-   python manage.py migrate
-   python manage.py createsuperuser
+python manage.py makemigrations
+python manage.py migrate
+python manage.py createsuperuser
 ```
 6. **Run Background Workers (in a separate terminal):**
 ```python
-      celery -A deepquery worker -l info
+celery -A deepquery worker -l info
 ```
 7. **Start the Development Server:**
 ```python
-         python manage.py runserver
+python manage.py runserver
 ```
 
 ## 🛡️ Testing
