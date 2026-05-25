@@ -74,25 +74,24 @@ class SerperProvider:
         self.url = "https://google.serper.dev/search"
 
     def search(self, query: str):
-        # payload = {"q": f"{query}"} 
-        # headers = {
-        #     "X-API-KEY": self.api_key,
-        #     "Content-Type": "application/json"
-        # }
-        # response = requests.post(self.url, json=payload, headers=headers)
-        # response.raise_for_status()
+        payload = {"q": f"{query}"} 
+        headers = {
+            "X-API-KEY": self.api_key,
+            "Content-Type": "application/json"
+        }
+        response = requests.post(self.url, json=payload, headers=headers)
+        response.raise_for_status()
 
-        # data = response.json()
-        # results = []
+        data = response.json()
+        results = []
 
-        # for item in data.get("organic", [])[:5]:
-        #     results.append({
-        #         "title": item.get("title"),
-        #         "url": item.get("link"),
-        #         "snippet": item.get("snippet"),
-        #     })
-        # return results
-        return []    
+        for item in data.get("organic", [])[:5]:
+            results.append({
+                "title": item.get("title"),
+                "url": item.get("link"),
+                "snippet": item.get("snippet"),
+            })
+        return results
 
 class WebSearchService:
     def __init__(self):

@@ -21,7 +21,6 @@ def download_embedding_model(self, provider_id: int):
     if not provider:
         return f"Provider {provider_id} does not exist."
     
-    # Mark as downloading
     provider.status = "downloading"
     provider.status_message = "Downloading model..."
     provider.save(update_fields=["status", "status_message"])

@@ -13,6 +13,7 @@ class ModelSerializer(serializers.ModelSerializer):
             "provider_type",
             "model_name",
             "description",
+            "supports_vision",
             "is_default_for_chat"
         ]
 

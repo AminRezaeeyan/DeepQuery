@@ -23,7 +23,6 @@ class EmbeddingProviderBase:
         """
         self.provider_model = provider_model
 
-        # Shortcut attributes
         self.model_name = provider_model.model_name
         self.provider_type = provider_model.provider_type
         self.api_key = provider_model.api_key
@@ -40,7 +39,6 @@ class EmbeddingProviderBase:
     def is_available(self):
         raise NotImplementedError
 
-    # ---- unified interface for chunking ----
 
     def count_tokens(self, text: str) -> int:
         """

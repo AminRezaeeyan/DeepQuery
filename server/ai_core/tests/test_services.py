@@ -21,13 +21,13 @@ class MockProviderInstance:
 @pytest.mark.django_db
 class TestTaskProviderResolver:
 
-    def test_get_provider_defaults_to_default_chat(self, chat_config, summary_config):
+    def test_get_provider_defaults_to_default_chat(self, chat_config, fact_config):
         provider = TaskProviderResolver.get_provider_for_task()
         assert provider == chat_config.provider
 
     def test_get_provider_with_id_and_non_chat_fails(self):
         with pytest.raises(ProviderUnavailable) as exc:
-            TaskProviderResolver.get_provider_for_task(task_type="summarization", provider_id=1)
+            TaskProviderResolver.get_provider_for_task(task_type="fact_extraction", provider_id=1)
         assert "only allowed when requesting a chat provider" in str(exc.value)
 
     def test_get_specific_chat_provider_success(self, chat_config):
@@ -42,22 +42,22 @@ class TestTaskProviderResolver:
             TaskProviderResolver.get_provider_for_task(task_type="chat", provider_id=999)
         assert "Requested provider not found" in str(exc.value)
 
-    def test_get_specific_chat_provider_not_assigned_to_chat(self, summary_config):
+    def test_get_specific_chat_provider_not_assigned_to_chat(self, fact_config):
         # We pass a valid provider ID, but it is only configured for summarization, not chat
         with pytest.raises(ProviderUnavailable) as exc:
             TaskProviderResolver.get_provider_for_task(
                 task_type="chat", 
-                provider_id=summary_config.provider.id
+                provider_id=fact_config.provider.id
             )
         assert "not assigned to chat" in str(exc.value)
 
-    def test_get_provider_by_task_type_success(self, summary_config):
-        provider = TaskProviderResolver.get_provider_for_task(task_type="summarization")
-        assert provider == summary_config.provider
+    def test_get_provider_by_task_type_success(self, fact_config):
+        provider = TaskProviderResolver.get_provider_for_task(task_type="fact_extraction")
+        assert provider == fact_config.provider
 
     def test_get_provider_fails_when_none_configured(self):
         with pytest.raises(ProviderUnavailable) as exc:
-            TaskProviderResolver.get_provider_for_task(task_type="fact_extraction")
+            TaskProviderResolver.get_provider_for_task(task_type="web_query_generation")
         assert "No provider configured" in str(exc.value)
 
 

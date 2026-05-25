@@ -7,16 +7,6 @@ from ai_core.services.document_rag_service import DocumentRAGService
 from ai_core.services.web_search_service import WebKnowledgeService
 
 class ChatGenerationService:
-    """
-    ChatGenerationService orchestrates high-level AI logic:
-    - system prompts
-    - conversation shaping
-    - RAG injection
-    - memory injection
-    - safety & policy layers
-    - calling LLMService as the final step
-    """
-
     def __init__(self, user_id, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type="General", reasoning_depth="Medium", challenge_mode=False):
         self.user_id = user_id
         self.chat_id = chat_id
@@ -136,8 +126,7 @@ class ChatGenerationService:
             for cit in sorted_cites:
                 source_name = cit["url"] if cit["url"] else cit["filename"]
                 yield f"[{cit['cite_id']}] {source_name}\n"
-
-
+#
 
 class PromptBuilder:
     BASE_LIMIT_RATIO = 0.8

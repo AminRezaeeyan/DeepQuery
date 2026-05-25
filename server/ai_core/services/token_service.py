@@ -9,22 +9,16 @@ class TokenService:
     across most modern LLMs (OpenAI, Claude, Gemini approximations).
     """
 
-    # _enc = tiktoken.get_encoding("cl100k_base")
+    _enc = tiktoken.get_encoding("cl100k_base")
 
     SAFETY_RATIO = 0.1
 
-    # @classmethod
-    # def count_tokens(cls, text: str) -> int:
-    #     if not text:
-    #         return 0
-    #     return len(cls._enc.encode(text))
-    
     @classmethod
     def count_tokens(cls, text: str) -> int:
         if not text:
             return 0
+        return len(cls._enc.encode(text))
 
-        return max(1, len(text) // 4)
 
     @classmethod
     def count_message_list(cls, messages: list[dict]) -> int:

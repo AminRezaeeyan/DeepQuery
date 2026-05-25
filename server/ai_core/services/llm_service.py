@@ -5,7 +5,7 @@ from ai_core.services.provider_service import ProviderService
 
 class LLMService:
 
-    def __init__(self, task_type=None, provider_id=None, image_bytes=None, mime_type=None):
+    def __init__(self, task_type=None, provider_id=None, ):
         if provider_id:
             provider_config = ProviderService.get_chat_provider(provider_id)
         else:
@@ -18,6 +18,6 @@ class LLMService:
         self.provider = ProviderFactory.get_provider(task_type=task_type, provider_id=provider_id)
 
 
-    def stream(self, messages: list[dict]):
-        for token in self.provider.stream(messages):
+    def stream(self, messages: list[dict], image_bytes=None, mime_type=None):
+        for token in self.provider.stream(messages, image_bytes, mime_type):
             yield token

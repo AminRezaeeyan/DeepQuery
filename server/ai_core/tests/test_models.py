@@ -45,10 +45,10 @@ class TestAITaskConfig:
 
     @patch("ai_core.models.AITaskConfig._auto_populate_if_first_provider", create=True)
     @patch("ai_core.models.AITaskConfig._auto_populate_if_first", create=True)
-    def test_clean_prevents_multiple_non_chat_providers(self, mock1, mock2, summary_config, openai_provider):
-        # We already have a gemini_provider assigned to "summarization"
+    def test_clean_prevents_multiple_non_chat_providers(self, mock1, mock2, fact_config, openai_provider):
+        # We already have a gemini_provider assigned to "fact_extraction"
         invalid_config = AITaskConfig(
-            task_type="summarization",
+            task_type="fact_extraction",
             provider=openai_provider
         )
         
@@ -88,8 +88,8 @@ class TestAITaskConfig:
         
         # Check that it generated configs for the choices
         assert AITaskConfig.objects.filter(task_type="chat").exists()
-        assert AITaskConfig.objects.filter(task_type="summarization").exists()
-        assert AITaskConfig.objects.filter(task_type="embedding").exists()
+        assert AITaskConfig.objects.filter(task_type="web_query_generation").exists()
+        assert AITaskConfig.objects.filter(task_type="fact_extraction").exists()
 
 
 @pytest.mark.django_db

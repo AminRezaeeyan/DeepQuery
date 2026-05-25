@@ -33,10 +33,10 @@ def chat_config(openai_provider):
         )
 
 @pytest.fixture
-def summary_config(gemini_provider):
+def fact_config(gemini_provider):
     with patch("ai_core.models.AITaskConfig._auto_populate_if_first_provider", create=True):
         return AITaskConfig.objects.create(
-            task_type="summarization",
+            task_type="fact_extraction",
             provider=gemini_provider
         )
 

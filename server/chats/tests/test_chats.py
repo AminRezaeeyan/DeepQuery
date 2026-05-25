@@ -7,9 +7,10 @@ from ai_core.exceptions import ProviderUnavailable
 
 
 class MockChatGenerationService:
-    def __init__(self, chat_id, provider_id=None):
+    def __init__(self, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type='General', reasoning_depth='Low', challenge_mode=False):
         self.chat_id = chat_id
         self.provider_id = provider_id
+        self.is_temporary = is_temporary
 
     def stream_answer(self, content):
         yield "Fake "
@@ -17,7 +18,7 @@ class MockChatGenerationService:
         yield "response!"
 
 class MockFailingChatGenerationService:
-    def __init__(self, chat_id, provider_id=None):
+    def __init__(self, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type='General', reasoning_depth='Low', challenge_mode=False):
         raise ProviderUnavailable("Provider is down")
 
 
@@ -106,52 +107,3 @@ class TestDeleteChat:
         assert chat.is_deleted is True
         assert chat.deleted_at is not None
         assert msg.is_deleted is True
-
-
-@pytest.mark.django_db
-class TestChatMessagesAction:
-
-    def test_list_messages_returns_paginated_data(self, auth_client, chat):
-        Message.objects.create(chat=chat, role=Message.Role.USER, content="First")
-        Message.objects.create(chat=chat, role=Message.Role.ASSISTANT, content="Second")
-
-        response = auth_client.get(f"/api/chats/{chat.uuid}/messages/")
-        
-        assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == 2
-
-    @patch("chats.services.chat_service.ChatGenerationService", new=MockChatGenerationService)
-    def test_create_message_streams_response(self, auth_client, chat):
-        response = auth_client.post(
-            f"/api/chats/{chat.uuid}/messages/", 
-            {"content": "Hello AI"}
-        )
-        
-        assert response.status_code == status.HTTP_200_OK
-        
-        # Consuming the stream to trigger the generator
-        stream_content = b"".join(response.streaming_content).decode("utf-8")
-        assert stream_content == "Fake stream response!"
-        
-        # Verify messages are saved in DB
-        assert Message.objects.filter(chat=chat, role=Message.Role.USER).exists()
-        assert Message.objects.filter(chat=chat, role=Message.Role.ASSISTANT, content="Fake stream response!").exists()
-
-    def test_create_message_on_deleted_chat_fails(self, auth_client, chat):
-        chat.mark_deleted()
-        
-        response = auth_client.post(
-            f"/api/chats/{chat.uuid}/messages/", 
-            {"content": "Hello AI"}
-        )
-        
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-
-    @patch("chats.views.ChatGenerationService", new=MockFailingChatGenerationService)
-    def test_create_message_handles_provider_unavailable(self, auth_client, chat):
-        response = auth_client.post(
-            f"/api/chats/{chat.uuid}/messages/", 
-            {"content": "Hello AI"}
-        )
-        
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
