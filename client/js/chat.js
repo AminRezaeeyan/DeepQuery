@@ -375,8 +375,9 @@ class ChatApp {
         }
         messages.forEach(message => {
             // Apply formatting for past messages too if needed
-            let formattedContent = this.escapeHtml(message.content);
-            formattedContent = this.formatCitations(formattedContent).replace(/\n/g, '<br>');
+            let formattedContent = this.escapeHtml(message.content); // Escape first for safety
+    formattedContent = this.parseSimpleMarkdown(formattedContent);
+    formattedContent = this.formatCitations(formattedContent);
             this.appendMessage(message.role, formattedContent, message.image, true);
         });
         this.scrollToBottom();
@@ -444,6 +445,30 @@ class ChatApp {
 
         return textDiv;
     }
+
+    parseSimpleMarkdown(text) {
+        if (!text) return '';
+        
+        let html = String(text); 
+        
+        html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:#2d2d2d; color:#ccc; padding:10px; border-radius:5px; overflow-x:auto;"><code>$1</code></pre>');
+        
+        // Inline code: `code`
+        html = html.replace(/`([^`]+)`/g, '<code style="background:#ddd; color:#d63384; padding:2px 4px; border-radius:4px;">$1</code>');
+        
+        // Bold: **text**
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        
+        // Italic: *text* or _text_
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        html = html.replace(/_([^_]+)_/g, '<em>$1</em>');
+        
+        // Line breaks
+        html = html.replace(/\n/g, '<br>');
+        
+        return html;
+    }
+
 
     // New helper method for formatting citations
     formatCitations(text) {
