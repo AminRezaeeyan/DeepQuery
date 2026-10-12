@@ -17,7 +17,7 @@ class LongTermMemoryService:
         self.user_id = user_id
         self.provider_id = provider_id
         self.embedder = EmbeddingService(provider_id=provider_id)
-        self.enabled=True
+        self.enabled = enabled
 
     def store_from_message(self, chat_id, text):
         """
