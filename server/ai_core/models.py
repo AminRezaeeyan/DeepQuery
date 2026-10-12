@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.db import models
+from ai_core.fields import EncryptedTextField
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.contrib.contenttypes.fields import GenericForeignKey
@@ -22,7 +23,7 @@ class LLMProvider(models.Model):
 
     provider_type = models.CharField(max_length=20,choices=PROVIDER_CHOICES)
 
-    api_key = models.CharField(max_length=255,blank=True,null=True)
+    api_key = EncryptedTextField(blank=True, null=True)
 
     base_url = models.URLField(blank=True,null=True)
 
@@ -175,8 +176,7 @@ class EmbeddingProvider(models.Model):
         choices=PROVIDER_TYPE_CHOICES
     )
 
-    api_key = models.CharField(
-        max_length=255,
+    api_key = EncryptedTextField(
         blank=True,
         help_text="API key for API-based providers"
     )
