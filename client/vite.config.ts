@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // The Django API runs on :8000. Proxying keeps the app same-origin in
@@ -13,5 +13,8 @@ export default defineConfig({
       "/api": API_TARGET,
       "/auth": API_TARGET,
     },
+  },
+  test: {
+    environment: "jsdom",
   },
 });
