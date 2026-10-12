@@ -7,6 +7,8 @@ from .serializers import PaymentInitiateSerializer, PaymentVerifySerializer, Pla
 from .services import SubscriptionService
 
 class PlanViewSet(mixins.ListModelMixin,mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    # Prices are public.
+    permission_classes = [AllowAny]
     queryset = Plan.objects.all()
     serializer_class = PlanSerializer
 
