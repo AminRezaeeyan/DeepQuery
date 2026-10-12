@@ -35,14 +35,17 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
   }, []);
 
   useEffect(() => {
+    // The route just changed to the chat this hook created for the first
+    // message; that message is streaming in now, so leave it alone.
+    if (chatId && adoptedChat.current === chatId) {
+      adoptedChat.current = null;
+      return;
+    }
+    // Leaving a chat: stop its answer.
     abortRef.current?.abort();
     if (!chatId) {
       setMessages([]);
       setOlderCursor(null);
-      return;
-    }
-    if (adoptedChat.current === chatId) {
-      adoptedChat.current = null;
       return;
     }
     let live = true;
