@@ -332,7 +332,6 @@ class MemoryFactAdmin(admin.ModelAdmin):
     search_fields = (
         "fact",
         "user__email",
-        "user__username",
     )
 
     readonly_fields = (
