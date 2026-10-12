@@ -89,14 +89,16 @@ class ChatViewSet(viewsets.ModelViewSet):
             .filter(user=request.user, is_temporary=False)
             .filter(
                 Q(title__icontains=query) |
-                Q(messages__content__icontains=query)
+                # Both conditions in one Q so they apply to the same message.
+                Q(messages__content__icontains=query, messages__is_deleted=False)
             )
             .distinct()
-            .order_by("-updated_at")
         )
 
-        serializer = ChatSerializer(chats, many=True)
-        return Response(serializer.data)
+        paginator = ChatCursorPagination()
+        page = paginator.paginate_queryset(chats, request)
+        serializer = ChatSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
 
     @action(detail=True, methods=["get", "post"])

@@ -25,7 +25,7 @@ class TestTemporaryChatsStayOutOfHistory:
     def test_search_hides_temporary_chats(self, auth_client, chats):
         response = auth_client.get("/api/chats/search/?q=research")
 
-        assert [c["title"] for c in response.data] == ["Normal research"]
+        assert [c["title"] for c in response.data["results"]] == ["Normal research"]
 
     def test_open_temporary_chat_is_still_reachable_by_id(self, auth_client, chats):
         _, temporary = chats
