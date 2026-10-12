@@ -1,8 +1,33 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
 import { Markdown } from "../../components/Markdown";
+import { api } from "../../lib/api";
 import { hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
 import type { UIMessage } from "./useChatSession";
+
+/** Chat images need the auth header, so they're fetched rather than linked. */
+function AuthImage({ path }: { path: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let url: string | null = null;
+    let live = true;
+    api.blob(path).then(
+      (blob) => {
+        if (!live) return;
+        url = URL.createObjectURL(blob);
+        setSrc(url);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [path]);
+
+  return src ? <img src={src} alt="Attached image" className="bubble-img" /> : <span className="bubble-img bubble-img--loading" />;
+}
 
 function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
@@ -107,8 +132,6 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
 function UserMessage({ message, onEdit }: { message: UIMessage; onEdit?: (text: string) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(message.content);
-  const image = message.localImage ?? message.image;
-  const [imageOk, setImageOk] = useState(true);
 
   if (editing && onEdit) {
     const save = () => {
@@ -151,7 +174,11 @@ function UserMessage({ message, onEdit }: { message: UIMessage; onEdit?: (text: 
   return (
     <article className="msg msg--user">
       <div className="bubble">
-        {image && imageOk && <img src={image} alt="" className="bubble-img" onError={() => setImageOk(false)} />}
+        {message.localImage ? (
+          <img src={message.localImage} alt="Attached image" className="bubble-img" />
+        ) : (
+          message.image && <AuthImage path={message.image} />
+        )}
         {message.content && (
           <p dir="auto" className="bubble-text">
             {message.content}

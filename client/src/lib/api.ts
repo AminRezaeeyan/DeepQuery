@@ -159,6 +159,9 @@ export const api = {
 
   models: () => json<Model[]>("/api/models/"),
 
+  /** Loads a private file (e.g. a chat image) with the user's token. */
+  blob: async (path: string) => (await request(path)).blob(),
+
   documents: () => json<Doc[]>("/api/documents/"),
 
   uploadDocument: (chat: string, file: File) => {

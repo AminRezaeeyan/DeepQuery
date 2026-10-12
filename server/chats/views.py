@@ -3,7 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from django.http import StreamingHttpResponse
+import mimetypes
+
+from django.http import FileResponse, Http404, StreamingHttpResponse
 from django.db.models import Q
 
 from ai_core.services.provider_service import ProviderService
@@ -169,6 +171,16 @@ class MessageViewSet(
         if self.action in ["update", "partial_update"]:
             return MessageUpdateSerializer
         return MessageSerializer
+
+    @action(detail=True, methods=["get"])
+    def image(self, request, uuid=None):
+        # Chat images are private, so they're served here (owner only)
+        # rather than from a public media URL.
+        message = self.get_object()
+        if not message.image:
+            raise Http404
+        content_type = mimetypes.guess_type(message.image.name)[0] or "application/octet-stream"
+        return FileResponse(message.image.open("rb"), content_type=content_type)
 
     def update(self, request, *args, **kwargs):
         message = self.get_object()

@@ -123,7 +123,8 @@ export function Composer(p: Props) {
     return () => URL.revokeObjectURL(url);
   }, [p.image]);
 
-  const canSend = !p.busy && (text.trim().length > 0 || p.image != null);
+  // A question is always required; an image alone isn't enough to answer.
+  const canSend = !p.busy && text.trim().length > 0;
 
   const submit = () => {
     if (!canSend) return;
@@ -164,7 +165,7 @@ export function Composer(p: Props) {
           dir="auto"
           rows={1}
           value={text}
-          placeholder="Ask a question, or paste something to check…"
+          placeholder={p.image ? "Ask something about this image…" : "Ask a question, or paste something to check…"}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

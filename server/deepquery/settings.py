@@ -145,6 +145,9 @@ LOGGING = {
 }
 
 # --- UPLOADS ---
+# Uploads are stored under server/ (chat_images/, user_documents/) and never
+# served from a public URL: chat images go through /api/messages/<uuid>/image/.
+MEDIA_ROOT = BASE_DIR
 DOCUMENT_MAX_UPLOAD_BYTES = config("DOCUMENT_MAX_UPLOAD_MB", default=20, cast=int) * 1024 * 1024
 CHAT_IMAGE_MAX_UPLOAD_BYTES = config("CHAT_IMAGE_MAX_UPLOAD_MB", default=10, cast=int) * 1024 * 1024
 
