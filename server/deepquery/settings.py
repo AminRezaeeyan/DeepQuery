@@ -120,6 +120,10 @@ ZARINPAL_MERCHANT_ID = config("ZARINPAL_MERCHANT_ID", default="")
 ZARINPAL_ACCESS_TOKEN = config("ZARINPAL_ACCESS_TOKEN", default="")
 ZARINPAL_SANDBOX = config("ZARINPAL_SANDBOX", default=True, cast=bool)
 
+# --- UPLOADS ---
+DOCUMENT_MAX_UPLOAD_BYTES = config("DOCUMENT_MAX_UPLOAD_MB", default=20, cast=int) * 1024 * 1024
+CHAT_IMAGE_MAX_UPLOAD_BYTES = config("CHAT_IMAGE_MAX_UPLOAD_MB", default=10, cast=int) * 1024 * 1024
+
 # --- UI CUSTOMIZATION ---
 JAZZMIN_SETTINGS = {
     "site_title": "DeepQuery Admin",

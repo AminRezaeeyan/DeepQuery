@@ -33,6 +33,31 @@ class DocumentProcessingService:
     def is_supported(cls, filename: str) -> bool:
         return cls.normalize_extension(filename) in cls.SUPPORTED_EXTENSIONS
 
+    TEXT_EXTENSIONS: ClassVar[set[str]] = {".txt", ".csv", ".py", ".js", ".ts", ".java", ".c", ".cpp", ".json", ".md"}
+
+    @classmethod
+    def content_matches_extension(cls, uploaded_file) -> bool:
+        """Checks the file's first bytes, not just its name."""
+        ext = cls.normalize_extension(uploaded_file.name)
+        uploaded_file.seek(0)
+        head = uploaded_file.read(8192)
+        uploaded_file.seek(0)
+
+        if ext == ".pdf":
+            return head.startswith(b"%PDF-")
+        if ext == ".xlsx":
+            return head.startswith(b"PK\x03\x04")  # xlsx is a zip archive
+        if ext in cls.TEXT_EXTENSIONS:
+            if b"\x00" in head:
+                return False
+            try:
+                head.decode("utf-8")
+            except UnicodeDecodeError as e:
+                # The read may have cut a multi-byte character in half.
+                return e.start >= len(head) - 3
+            return True
+        return False
+
     @classmethod
     def extract_text(cls, file_path: str) -> str:
         ext = cls.normalize_extension(file_path)

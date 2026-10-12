@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import Chat, Message
 
@@ -26,6 +27,13 @@ class AnswerOptionsSerializer(serializers.Serializer):
 
 
 class MessageSerializer(AnswerOptionsSerializer, serializers.ModelSerializer):
+
+    def validate_image(self, image):
+        # ImageField already checks the bytes are a real image (Pillow).
+        if image and image.size > settings.CHAT_IMAGE_MAX_UPLOAD_BYTES:
+            limit_mb = settings.CHAT_IMAGE_MAX_UPLOAD_BYTES // (1024 * 1024)
+            raise serializers.ValidationError(f"Images can be at most {limit_mb} MB.")
+        return image
 
     class Meta:
         model = Message
