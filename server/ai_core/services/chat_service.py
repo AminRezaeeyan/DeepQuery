@@ -48,7 +48,7 @@ class ChatGenerationService:
         return prompt
 
         
-    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None):
+    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None, history_before=None):
         system_prompt = self._get_system_prompt()
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
@@ -99,6 +99,7 @@ class ChatGenerationService:
         short_term_memory = ShortTermMemory(
             chat_id=self.chat_id,
             token_limit=budgets["short_term_memory"],
+            before=history_before,
         )
         short_term_messages = short_term_memory.collect()
 

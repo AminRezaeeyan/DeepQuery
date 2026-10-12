@@ -39,7 +39,12 @@ class ChatService:
         def stream():
             assistant_text = ""
 
-            for token in chat_service.stream_answer(user_message.content, image_bytes=image_bytes, mime_type=mime_type):
+            for token in chat_service.stream_answer(
+                user_message.content,
+                image_bytes=image_bytes,
+                mime_type=mime_type,
+                history_before=user_message.created_at,
+            ):
                 assistant_text += token
                 yield token
 

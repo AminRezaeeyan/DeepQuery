@@ -30,11 +30,13 @@ class TestImagesReachTheModel:
         call = self._run(message)
 
         assert call.args == ("What is in this picture?",)
-        assert call.kwargs == {"image_bytes": b"png-bytes", "mime_type": "image/png"}
+        assert call.kwargs["image_bytes"] == b"png-bytes"
+        assert call.kwargs["mime_type"] == "image/png"
 
     def test_text_only_message_sends_no_image(self, chat):
         message = Message.objects.create(chat=chat, role=Message.Role.USER, content="Hi")
 
         call = self._run(message)
 
-        assert call.kwargs == {"image_bytes": None, "mime_type": None}
+        assert call.kwargs["image_bytes"] is None
+        assert call.kwargs["mime_type"] is None
