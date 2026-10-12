@@ -1,3 +1,5 @@
+import mimetypes
+
 from django.db.models import Count
 from chats.models import Chat, Message
 from ai_core.exceptions import ProviderUnavailable
@@ -32,10 +34,12 @@ class ChatService:
         except ProviderUnavailable:
             raise
                 
+        image_bytes, mime_type = ChatService._read_image(user_message)
+
         def stream():
             assistant_text = ""
 
-            for token in chat_service.stream_answer(user_message.content):
+            for token in chat_service.stream_answer(user_message.content, image_bytes=image_bytes, mime_type=mime_type):
                 assistant_text += token
                 yield token
 
@@ -48,6 +52,14 @@ class ChatService:
         chat.mark_updated()
         return stream()
     
+    @staticmethod
+    def _read_image(message):
+        if not message.image:
+            return None, None
+        mime_type = mimetypes.guess_type(message.image.name)[0]
+        with message.image.open("rb") as f:
+            return f.read(), mime_type
+
     @staticmethod
     def edit_user_message(old_message, new_content):
         chat = old_message.chat
