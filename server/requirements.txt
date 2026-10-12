@@ -9,9 +9,10 @@ djangorestframework==3.17.1
 djangorestframework_simplejwt==5.5.1
 drf-spectacular==0.29.0
 PyJWT==2.12.1
+google-auth==2.49.1
 
 # Database & Task Queue
-psycopg-binary==3.3.3
+psycopg[binary]==3.3.3
 pgvector==0.4.2
 redis==7.4.0
 celery==5.6.3
@@ -22,6 +23,8 @@ anthropic==0.89.0
 google-genai==1.70.0
 huggingface_hub==1.9.0
 tiktoken==0.12.0
+sentence-transformers==6.1.0
+transformers==5.19.0
 
 # Data & Document Processing
 pandas==3.0.2
@@ -30,6 +33,7 @@ pdfplumber==0.11.9
 pypdfium2==5.7.1
 beautifulsoup4==4.14.3
 openpyxl==3.1.5
+Pillow==12.2.0
 
 # Utilities
 httpx==0.28.1
