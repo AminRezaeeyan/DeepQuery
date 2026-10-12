@@ -1,6 +1,11 @@
+import ipaddress
+import logging
+import re
+import socket
+from urllib.parse import urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
-import re
 
 from django.conf import settings
 
@@ -8,6 +13,8 @@ from ai_core.services.llm_service import LLMService
 from ai_core.services.token_service import TokenService
 from documents.models import Document
 from .embedding_service import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 URL_REGEX = r"(https?://[^\s]+)"
 
@@ -46,27 +53,84 @@ class WebSearchQueryGenerator:
     
 
 
+class UnsafeURL(Exception):
+    pass
+
+
+def check_public_url(url: str) -> None:
+    """
+    Raises UnsafeURL unless url is http(s) and its host resolves only to
+    public addresses. Stops prompts from making the server fetch internal
+    services, cloud metadata endpoints or localhost.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise UnsafeURL(f"Only http and https URLs can be fetched: {url}")
+
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+    except socket.gaierror:
+        raise UnsafeURL(f"Could not resolve {parsed.hostname}")
+
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0].split("%")[0])
+        if address.version == 6 and address.ipv4_mapped:
+            address = address.ipv4_mapped
+        if not address.is_global:
+            raise UnsafeURL(f"{parsed.hostname} resolves to a non-public address")
+
+
 class WebPageFetcher:
+    MAX_REDIRECTS = 3
+    MAX_BYTES = 2_000_000
+    TIMEOUT = (5, 10)
+    ALLOWED_TYPES = ("text/html", "text/plain", "application/xhtml+xml")
 
     def fetch(self, url: str) -> str:
         try:
-            res = requests.get(url, timeout=5)
-            res.raise_for_status()
-
-            soup = BeautifulSoup(res.text, "html.parser")
-
-            for tag in soup(["script", "style", "nav", "footer"]):
-                tag.decompose()
-
-            text = soup.get_text(separator="\n")
-            text = re.sub(r'[ \t]+', ' ', text)
-            text = re.sub(r'\n+', '\n', text)
-
-
-            return text[:20000]
-
-        except Exception:
+            res = self._get(url)
+            html = self._read_limited(res)
+        except (UnsafeURL, requests.RequestException) as e:
+            logger.info("Skipped %s: %s", url, e)
             return ""
+
+        soup = BeautifulSoup(html, "html.parser")
+
+        for tag in soup(["script", "style", "nav", "footer"]):
+            tag.decompose()
+
+        text = soup.get_text(separator="\n")
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n+', '\n', text)
+
+        return text[:20000]
+
+    def _get(self, url: str):
+        # Redirects are followed by hand so every hop is checked.
+        for _ in range(self.MAX_REDIRECTS + 1):
+            check_public_url(url)
+            res = requests.get(url, timeout=self.TIMEOUT, allow_redirects=False, stream=True)
+            if res.is_redirect:
+                url = urljoin(url, res.headers["Location"])
+                res.close()
+                continue
+            res.raise_for_status()
+            content_type = res.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if content_type and content_type not in self.ALLOWED_TYPES:
+                res.close()
+                raise UnsafeURL(f"Unsupported content type {content_type}")
+            return res
+        raise UnsafeURL("Too many redirects")
+
+    def _read_limited(self, res) -> str:
+        chunks, size = [], 0
+        for chunk in res.iter_content(chunk_size=65536):
+            size += len(chunk)
+            if size > self.MAX_BYTES:
+                break
+            chunks.append(chunk)
+        res.close()
+        return b"".join(chunks).decode(res.encoding or "utf-8", errors="replace")
 
 class SerperProvider:
     def __init__(self, api_key):
@@ -124,7 +188,8 @@ class WebKnowledgeService:
     def gather_and_embed(self, prompt: str) -> None:
         """Fetches, cleans, saves to DB, and embeds web pages."""
 
-        urls_to_process = extract_urls(prompt)
+        # Cap how many pages one prompt can make the server fetch.
+        urls_to_process = extract_urls(prompt)[:self.MAX_SEARCH_RESULTS]
 
         # If no explicit URLs, generate query and search
         if not urls_to_process:
