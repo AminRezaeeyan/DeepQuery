@@ -1,0 +1,172 @@
+import type {
+  Chat,
+  Doc,
+  Message,
+  Model,
+  Page,
+  Plan,
+  ResearchOptions,
+  Subscription,
+  Tokens,
+} from "./types";
+
+// Empty means same origin: Vite proxies /api and /auth to Django in dev.
+const API_BASE = import.meta.env.VITE_API_BASE ?? "";
+
+const TOKEN_KEY = "dq-access";
+
+export const tokenStore = {
+  get: () => localStorage.getItem(TOKEN_KEY),
+  set: (t: Tokens) => localStorage.setItem(TOKEN_KEY, t.access),
+  clear: () => localStorage.removeItem(TOKEN_KEY),
+};
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+let onUnauthorized: () => void = () => {};
+export function setUnauthorizedHandler(fn: () => void) {
+  onUnauthorized = fn;
+}
+
+/** Flattens DRF error bodies ({"detail"}, ["msg"], {"field": ["msg"]}) into one line. */
+function errorMessage(body: unknown, fallback: string): string {
+  if (!body) return fallback;
+  if (typeof body === "string") return body;
+  if (Array.isArray(body)) return body.map((b) => errorMessage(b, "")).filter(Boolean).join(" ");
+  if (typeof body === "object") {
+    const obj = body as Record<string, unknown>;
+    if (typeof obj.detail === "string") return obj.detail;
+    const parts = Object.entries(obj).map(([key, value]) => {
+      const msg = errorMessage(value, "");
+      return key === "non_field_errors" ? msg : `${key.replace(/_/g, " ")}: ${msg}`;
+    });
+    return parts.filter(Boolean).join(" ") || fallback;
+  }
+  return fallback;
+}
+
+/** Turns DRF's absolute pagination links into same-origin paths. */
+function toPath(url: string): string {
+  try {
+    const u = new URL(url, window.location.origin);
+    return u.pathname + u.search;
+  } catch {
+    return url;
+  }
+}
+
+async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const token = tokenStore.get();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
+
+  const res = await fetch(API_BASE + path, { ...init, headers });
+
+  if (res.status === 401 && token) {
+    tokenStore.clear();
+    onUnauthorized();
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(res.status, errorMessage(body, `Request failed (${res.status})`));
+  }
+  return res;
+}
+
+async function json<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await request(path, init);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+const body = (data: unknown) => JSON.stringify(data);
+
+export const api = {
+  login: (email: string, password: string) =>
+    json<{ tokens: Tokens }>("/auth/login/", { method: "POST", body: body({ email, password }) }),
+
+  register: (data: { email: string; password: string; first_name: string; last_name: string }) =>
+    json<{ tokens: Tokens }>("/auth/register/", { method: "POST", body: body(data) }),
+
+  googleLogin: (token: string) =>
+    json<{ tokens: Tokens }>("/auth/google/", { method: "POST", body: body({ token }) }),
+
+  chats: (next?: string | null) => json<Page<Chat>>(next ? toPath(next) : "/api/chats/"),
+
+  searchChats: (q: string) => json<Chat[]>(`/api/chats/search/?q=${encodeURIComponent(q)}`),
+
+  chat: (uuid: string) => json<Chat>(`/api/chats/${uuid}/`),
+
+  createChat: () => json<Chat>("/api/chats/", { method: "POST", body: body({}) }),
+
+  updateChat: (uuid: string, data: Partial<Pick<Chat, "title" | "provider_id" | "is_temporary">>) =>
+    json<Chat>(`/api/chats/${uuid}/`, { method: "PATCH", body: body(data) }),
+
+  deleteChat: (uuid: string) => json<void>(`/api/chats/${uuid}/`, { method: "DELETE" }),
+
+  messages: (uuid: string, next?: string | null) =>
+    json<Page<Message>>(next ? toPath(next) : `/api/chats/${uuid}/messages/`),
+
+  models: () => json<Model[]>("/api/models/"),
+
+  documents: () => json<Doc[]>("/api/documents/"),
+
+  uploadDocument: (chat: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("chat", chat);
+    return json<Doc>("/api/documents/", { method: "POST", body: form });
+  },
+
+  deleteDocument: (uuid: string) => json<void>(`/api/documents/${uuid}/`, { method: "DELETE" }),
+
+  plans: () => json<Plan[]>("/api/subscriptions/plans/"),
+
+  subscription: () => json<Subscription>("/api/subscriptions/my-subscription/"),
+
+  startPayment: (planId: number) =>
+    json<{ payment_url: string; authority: string }>("/api/subscriptions/payment/initiate/", {
+      method: "POST",
+      body: body({ plan_id: planId }),
+    }),
+
+  /** Sends a message and returns the streamed plain-text answer. */
+  sendMessage: (chat: string, content: string, opts: ResearchOptions, image: File | null, signal: AbortSignal) => {
+    const form = new FormData();
+    form.append("content", content);
+    form.append("enable_web_search", String(opts.webSearch));
+    form.append("strict_quote_mode", String(opts.strictQuotes));
+    form.append("challenge_mode", String(opts.challenge));
+    form.append("reasoning_depth", opts.depth);
+    form.append("audience_type", opts.audience);
+    if (image) form.append("image", image);
+    return request(`/api/chats/${chat}/messages/`, { method: "POST", body: form, signal });
+  },
+
+  /** Replaces the last user message and streams a fresh answer. */
+  editMessage: (uuid: string, content: string, signal: AbortSignal) =>
+    request(`/api/messages/${uuid}/`, { method: "PATCH", body: body({ content }), signal }),
+};
+
+export async function readStream(res: Response, onText: (full: string) => void): Promise<string> {
+  if (!res.body) return "";
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let full = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    full += decoder.decode(value, { stream: true });
+    onText(full);
+  }
+  full += decoder.decode();
+  onText(full);
+  return full;
+}
