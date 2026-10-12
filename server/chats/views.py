@@ -23,6 +23,29 @@ from .serializers import (
 )
 
 
+def charge(user, resources):
+    """
+    Counts each resource against the user's daily limits and returns a
+    function that refunds them all, for requests that don't complete.
+    """
+    charged = []
+    try:
+        for resource in resources:
+            SubscriptionService.consume(user, resource)
+            charged.append(resource)
+    except SubscriptionLimitExceeded as e:
+        for resource in charged:
+            SubscriptionService.refund(user, resource)
+        raise ValidationError(str(e))
+
+    def refund():
+        for resource in charged:
+            SubscriptionService.refund(user, resource)
+        charged.clear()
+
+    return refund
+
+
 class ChatViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "patch", "delete"]
     permission_classes = [IsAuthenticated]
@@ -102,40 +125,31 @@ class ChatViewSet(viewsets.ModelViewSet):
             reasoning_depth = data.get("reasoning_depth", "Medium")
             challenge_mode = data.get("challenge_mode", False)
 
-            try:
-                SubscriptionService.check_message_limit(request.user)
-                if image:
-                    SubscriptionService.check_image_limit(request.user)
-            except SubscriptionLimitExceeded as e:
-                raise ValidationError(str(e))
-
-
             if chat.is_deleted:
                 raise ValidationError("Chat has been deleted.")
 
-
-            user_message = serializer.save(
-                chat=chat,
-                role=Message.Role.USER
-            )
-
-            is_first_message = chat.messages.exclude(id=user_message.id).count() == 0
-
-            if is_first_message:
-                from .tasks import generate_chat_title
-                generate_chat_title.delay(chat.id, user_message.id)
+            refund = charge(request.user, ["message", "image"] if image else ["message"])
 
             try:
-                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode)
+                user_message = serializer.save(
+                    chat=chat,
+                    role=Message.Role.USER
+                )
 
-            except ProviderUnavailable as e:
-                raise ValidationError(str(e))
-            except ContextLimitExceededError as e:
-                raise ValidationError(str(e))
+                is_first_message = chat.messages.exclude(id=user_message.id).count() == 0
 
-            SubscriptionService.increment_usage(request.user, "message")
-            if image:
-                SubscriptionService.increment_usage(request.user, "image")
+                if is_first_message:
+                    from .tasks import generate_chat_title
+                    generate_chat_title.delay(chat.id, user_message.id)
+
+                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode, on_incomplete=refund)
+
+            except (ProviderUnavailable, ContextLimitExceededError) as e:
+                refund()
+                raise ValidationError(str(e))
+            except Exception:
+                refund()
+                raise
 
             return StreamingHttpResponse(
                 stream,
@@ -163,21 +177,23 @@ class MessageViewSet(
     def update(self, request, *args, **kwargs):
         message = self.get_object()
 
-        try:
-            SubscriptionService.check_message_limit(request.user)
-        except SubscriptionLimitExceeded as e:
-            raise ValidationError(str(e))
-
         serializer = self.get_serializer(data=request.data, instance=message, partial=True)
         serializer.is_valid(raise_exception=True)
+
+        refund = charge(request.user, ["message"])
 
         try:
             stream = ChatService.edit_user_message(
                 message,
-                serializer.validated_data["content"]
+                serializer.validated_data["content"],
+                on_incomplete=refund,
             )
-        except ProviderUnavailable as e:
+        except (ProviderUnavailable, ContextLimitExceededError) as e:
+            refund()
             raise ValidationError(str(e))
+        except Exception:
+            refund()
+            raise
 
         return StreamingHttpResponse(
             stream,
