@@ -31,8 +31,11 @@ class ChatGenerationService:
             "High": "Provide an exhaustive, multi-section analysis with deep logical derivation."
         }
         
+        # Never paste the raw request value into the prompt.
+        audience = {"General": "a general audience", "Expert": "an expert audience"}.get(self.audience_type, "a general audience")
+
         prompt = (
-            f"You are an expert Research Assistant. Tailor your tone to an {self.audience_type} audience.\n"
+            f"You are an expert Research Assistant. Tailor your tone to {audience}.\n"
             "RULES:\n"
             "1. EVIDENCE-BASED: Rely EXCLUSIVELY on the provided context. If an answer isn't in the context, state it.\n"
             "2. CITATION: You MUST cite claims using [Source ID] (e.g., [1]). If multiple support a claim, use [1][2].\n"

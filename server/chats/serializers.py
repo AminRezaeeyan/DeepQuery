@@ -10,8 +10,9 @@ class AnswerOptionsSerializer(serializers.Serializer):
     enable_web_search = serializers.BooleanField(write_only=True, required=False, default=False)
     strict_quote_mode = serializers.BooleanField(write_only=True, required=False, default=False)
     challenge_mode = serializers.BooleanField(write_only=True, required=False, default=False)
-    audience_type = serializers.CharField(write_only=True, required=False, default="General")
-    reasoning_depth = serializers.CharField(write_only=True, required=False, default="Medium")
+    # Fixed choices: these values end up in the system prompt.
+    audience_type = serializers.ChoiceField(choices=["General", "Expert"], write_only=True, required=False, default="General")
+    reasoning_depth = serializers.ChoiceField(choices=["Low", "Medium", "High"], write_only=True, required=False, default="Medium")
 
     OPTION_FIELDS = ["enable_web_search", "strict_quote_mode", "challenge_mode", "audience_type", "reasoning_depth"]
 
