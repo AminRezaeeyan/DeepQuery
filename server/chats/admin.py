@@ -63,7 +63,6 @@ class ChatAdmin(admin.ModelAdmin):
         "uuid",
         "title",
         "user__email",
-        "user__username",
     )
 
     

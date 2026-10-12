@@ -39,7 +39,7 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         "is_active",
     )
 
-    search_fields = ("user__username", "user__email")
+    search_fields = ("user__email",)
     list_filter = ("plan", "start_date")
     readonly_fields = ("is_active",)
 
@@ -54,7 +54,7 @@ class UserUsageAdmin(admin.ModelAdmin):
         "last_reset",
     )
 
-    search_fields = ("user__username", "user__email")
+    search_fields = ("user__email",)
     list_filter = ("last_reset",)
 
     actions = ["reset_usage"]
@@ -84,5 +84,5 @@ class PaymentAdmin(admin.ModelAdmin):
     )
 
     list_filter = ("status", "created_at", "plan")
-    search_fields = ("user__username", "authority", "ref_id")
+    search_fields = ("user__email", "authority", "ref_id")
     readonly_fields = ("created_at",)
