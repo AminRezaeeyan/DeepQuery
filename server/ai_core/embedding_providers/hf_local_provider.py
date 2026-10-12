@@ -20,12 +20,12 @@ class HFLocalEmbeddingProvider(EmbeddingProviderBase):
         """Determines the local path where the model is stored."""
         models_dir = os.path.join(settings.BASE_DIR, "media", "models", "embeddings")
         os.makedirs(models_dir, exist_ok=True)
-        safe_name = self.provider_config.model_name.replace("/", "--")
+        safe_name = self.provider_model.model_name.replace("/", "--")
         return os.path.join(models_dir, safe_name)
 
     def _get_model(self):
         """Thread-safe singleton loader for the model."""
-        model_name = self.provider_config.model_name
+        model_name = self.provider_model.model_name
         
         if model_name not in _loaded_models:
             with _load_lock:
@@ -52,7 +52,7 @@ class HFLocalEmbeddingProvider(EmbeddingProviderBase):
     def download_model(self):
         """Method to be called by a Celery task to perform the initial download."""
         from sentence_transformers import SentenceTransformer
-        model = SentenceTransformer(self.provider_config.model_name)
+        model = SentenceTransformer(self.provider_model.model_name)
         model.save(self.model_path)
 
     def count_tokens(self, text):
