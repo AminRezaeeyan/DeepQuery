@@ -40,7 +40,7 @@ class ChatService:
         )
     
     @staticmethod
-    def generate_stream(chat, user_message, enable_web_search=False, strict_quote_mode=False, audience_type="General", reasoning_depth="Medium", challenge_mode=False):
+    def generate_stream(chat, user_message, enable_web_search=False, strict_quote_mode=False, audience_type="General", reasoning_depth="Medium", challenge_mode=False, on_incomplete=None):
  
         try:
             chat_service = ChatGenerationService(chat.user_id, chat.id, chat.provider_id, is_temporary=chat.is_temporary, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode)
@@ -54,24 +54,28 @@ class ChatService:
 
         def stream():
             assistant_text = ""
+            completed = False
 
             try:
                 for token in chat_service.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type):
                     assistant_text += token
                     yield token
+
+                Message.objects.create(
+                    chat=chat,
+                    role=Message.Role.ASSISTANT,
+                    content=assistant_text
+                )
+                completed = True
             except ContextLimitExceededError as e:
                 yield stream_error(str(e))
-                return
             except Exception:
                 logger.exception("Answer stream failed for chat %s", chat.id)
                 yield stream_error("The model stopped before finishing the answer. Try again.")
-                return
-
-            Message.objects.create(
-                chat=chat,
-                role=Message.Role.ASSISTANT,
-                content=assistant_text
-            )
+            finally:
+                # Also runs on GeneratorExit, when the client disconnects.
+                if not completed and on_incomplete:
+                    on_incomplete()
 
         chat.mark_updated()
         return stream()
@@ -85,7 +89,7 @@ class ChatService:
             return f.read(), mime_type
 
     @staticmethod
-    def edit_user_message(old_message, new_content):
+    def edit_user_message(old_message, new_content, on_incomplete=None):
         chat = old_message.chat
 
         # 1. Mark old user message deleted
@@ -113,7 +117,7 @@ class ChatService:
             content=new_content
         )
 
-        return ChatService.generate_stream(chat, new_user_message)
+        return ChatService.generate_stream(chat, new_user_message, on_incomplete=on_incomplete)
     
     @staticmethod
     def get_message_pairs(chat_id, cursor=None, limit=20):

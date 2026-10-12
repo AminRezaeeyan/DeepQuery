@@ -3,6 +3,7 @@ from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import F
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Plan, UserSubscription, Payment, UserUsage
@@ -57,48 +58,38 @@ class SubscriptionService:
             
         return usage
     
-    @staticmethod
-    def check_limit(user, limit_field):
-        plan = SubscriptionService.get_user_plan(user)
-        usage = SubscriptionService.get_usage(user)
-
-        plan_limit = getattr(plan, f'daily_{limit_field}')
-        usage_value = getattr(usage, f"{limit_field.replace('_limit', '')}_count")
-
-        if usage_value >= plan_limit:
-            raise SubscriptionLimitExceeded(
-                f"You have reached your {limit_field.replace('_limit', '')} count "
-                f"({plan_limit}). Upgrade your plan."
-            )
-
-    @staticmethod
-    def check_message_limit(user):
-        SubscriptionService.check_limit(user, "message_limit")
-
-    @staticmethod
-    def check_document_limit(user):
-        SubscriptionService.check_limit(user, "document_limit")
-
-    @staticmethod
-    def check_image_limit(user):
-        SubscriptionService.check_limit(user, "image_limit")
-
+    RESOURCES = ("message", "document", "image")
 
     @staticmethod
     @transaction.atomic
-    def increment_usage(user, resource_type):
-        usage = SubscriptionService.get_usage(user)
-
-        if resource_type == "message":
-            usage.message_count += 1
-        elif resource_type == "document":
-            usage.document_count += 1
-        elif resource_type == "image":
-            usage.image_count += 1
-        else:
+    def consume(user, resource):
+        """
+        Counts one use of `resource` against today's limit, or raises
+        SubscriptionLimitExceeded. Checking and counting happen under a row
+        lock, so parallel requests can't both take the last slot.
+        """
+        if resource not in SubscriptionService.RESOURCES:
             raise ValidationError("Invalid resource type")
 
-        usage.save()
+        SubscriptionService.get_usage(user)
+        usage = UserUsage.objects.select_for_update().get(user=user)
+        plan = SubscriptionService.get_user_plan(user)
+
+        limit = getattr(plan, f"daily_{resource}_limit")
+        field = f"{resource}_count"
+
+        if getattr(usage, field) >= limit:
+            raise SubscriptionLimitExceeded(
+                f"You have reached your daily {resource} limit ({limit}). Upgrade your plan."
+            )
+
+        UserUsage.objects.filter(pk=usage.pk).update(**{field: F(field) + 1})
+
+    @staticmethod
+    def refund(user, resource):
+        """Gives back a use when the request it paid for didn't complete."""
+        field = f"{resource}_count"
+        UserUsage.objects.filter(user=user, **{f"{field}__gt": 0}).update(**{field: F(field) - 1})
 
     @staticmethod
     def initiate_zarinpal_payment(user, plan, request):
