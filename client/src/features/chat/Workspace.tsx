@@ -326,10 +326,10 @@ export function Workspace() {
                   key={m.uuid}
                   message={m}
                   status={status}
-                  onEdit={canEdit && i === lastUserIdx ? (text) => session.edit(m, text) : undefined}
+                  onEdit={canEdit && i === lastUserIdx ? (text) => session.edit(m, text, options) : undefined}
                   onRetry={
                     canEdit && m.role === "assistant" && i === messages.length - 1 && i > lastUserIdx
-                      ? () => session.edit(lastUser, lastUser.content)
+                      ? () => session.edit(lastUser, lastUser.content, options)
                       : undefined
                   }
                 />

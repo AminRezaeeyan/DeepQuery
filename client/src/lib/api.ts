@@ -121,6 +121,15 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 
 const body = (data: unknown) => JSON.stringify(data);
 
+/** The API's names for the answer settings, shared by send and edit. */
+export const answerOptions = (opts: ResearchOptions) => ({
+  enable_web_search: opts.webSearch,
+  strict_quote_mode: opts.strictQuotes,
+  challenge_mode: opts.challenge,
+  reasoning_depth: opts.depth,
+  audience_type: opts.audience,
+});
+
 export const api = {
   login: (email: string, password: string) =>
     json<{ tokens: Tokens }>("/auth/login/", { method: "POST", body: body({ email, password }) }),
@@ -174,18 +183,14 @@ export const api = {
   sendMessage: (chat: string, content: string, opts: ResearchOptions, image: File | null, signal: AbortSignal) => {
     const form = new FormData();
     form.append("content", content);
-    form.append("enable_web_search", String(opts.webSearch));
-    form.append("strict_quote_mode", String(opts.strictQuotes));
-    form.append("challenge_mode", String(opts.challenge));
-    form.append("reasoning_depth", opts.depth);
-    form.append("audience_type", opts.audience);
+    for (const [key, value] of Object.entries(answerOptions(opts))) form.append(key, String(value));
     if (image) form.append("image", image);
     return request(`/api/chats/${chat}/messages/`, { method: "POST", body: form, signal });
   },
 
-  /** Replaces the last user message and streams a fresh answer. */
-  editMessage: (uuid: string, content: string, signal: AbortSignal) =>
-    request(`/api/messages/${uuid}/`, { method: "PATCH", body: body({ content }), signal }),
+  /** Replaces the last user message and streams a fresh answer with the given options. */
+  editMessage: (uuid: string, content: string, opts: ResearchOptions, signal: AbortSignal) =>
+    request(`/api/messages/${uuid}/`, { method: "PATCH", body: body({ content, ...answerOptions(opts) }), signal }),
 };
 
 // The server ends a stream that failed midway with this character and a

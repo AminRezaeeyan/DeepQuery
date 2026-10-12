@@ -153,7 +153,7 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
   );
 
   const edit = useCallback(
-    async (message: UIMessage, content: string) => {
+    async (message: UIMessage, content: string, opts: ResearchOptions) => {
       if (busy || !chatId) return;
       const assistantId = tempId();
       setMessages((m) => {
@@ -164,7 +164,7 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
           { uuid: assistantId, role: "assistant", content: "", image: null, created_at: new Date().toISOString(), streaming: true },
         ];
       });
-      await consume(chatId, assistantId, (signal) => api.editMessage(message.uuid, content, signal), false);
+      await consume(chatId, assistantId, (signal) => api.editMessage(message.uuid, content, opts, signal), false);
     },
     [busy, chatId, consume],
   );

@@ -117,13 +117,8 @@ class ChatViewSet(viewsets.ModelViewSet):
             serializer = MessageSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
 
-            data = serializer.validated_data
-            image = data.get("image")
-            enable_web_search = data.get("enable_web_search", False)
-            strict_quote_mode = data.get("strict_quote_mode", False)
-            audience_type = data.get("audience_type", "General")
-            reasoning_depth = data.get("reasoning_depth", "Medium")
-            challenge_mode = data.get("challenge_mode", False)
+            image = serializer.validated_data.get("image")
+            options = serializer.answer_options()
 
             if chat.is_deleted:
                 raise ValidationError("Chat has been deleted.")
@@ -142,7 +137,7 @@ class ChatViewSet(viewsets.ModelViewSet):
                     from .tasks import generate_chat_title
                     generate_chat_title.delay(chat.id, user_message.id)
 
-                stream = ChatService.generate_stream(chat, user_message, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode, on_incomplete=refund)
+                stream = ChatService.generate_stream(chat, user_message, on_incomplete=refund, **options)
 
             except (ProviderUnavailable, ContextLimitExceededError) as e:
                 refund()
@@ -187,6 +182,7 @@ class MessageViewSet(
                 message,
                 serializer.validated_data["content"],
                 on_incomplete=refund,
+                **serializer.answer_options(),
             )
         except (ProviderUnavailable, ContextLimitExceededError) as e:
             refund()
