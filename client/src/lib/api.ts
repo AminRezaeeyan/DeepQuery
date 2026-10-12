@@ -188,6 +188,10 @@ export const api = {
     request(`/api/messages/${uuid}/`, { method: "PATCH", body: body({ content }), signal }),
 };
 
+// The server ends a stream that failed midway with this character and a
+// JSON error body (see chats/services/chat_service.py).
+const STREAM_ERROR_MARKER = "\u001e";
+
 export async function readStream(res: Response, onText: (full: string) => void): Promise<string> {
   if (!res.body) return "";
   const reader = res.body.getReader();
@@ -197,6 +201,17 @@ export async function readStream(res: Response, onText: (full: string) => void):
     const { done, value } = await reader.read();
     if (done) break;
     full += decoder.decode(value, { stream: true });
+    const marker = full.indexOf(STREAM_ERROR_MARKER);
+    if (marker !== -1) {
+      onText(full.slice(0, marker));
+      let detail = "The answer stopped before it finished. Try again.";
+      try {
+        detail = (JSON.parse(full.slice(marker + 1)) as { detail?: string }).detail ?? detail;
+      } catch {
+        /* the error body may be cut off; keep the generic message */
+      }
+      throw new ApiError(502, detail);
+    }
     onText(full);
   }
   full += decoder.decode();
