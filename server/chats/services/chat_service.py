@@ -1,9 +1,22 @@
+import json
+import logging
 import mimetypes
 
 from django.db.models import Count
 from chats.models import Chat, Message
-from ai_core.exceptions import ProviderUnavailable
+from ai_core.exceptions import ContextLimitExceededError, ProviderUnavailable
 from ai_core.services.chat_service import ChatGenerationService
+
+logger = logging.getLogger(__name__)
+
+# Ends a stream that failed after it started. The client splits on this
+# character (ASCII record separator, never in model output) and reads the
+# JSON after it as the error.
+STREAM_ERROR_MARKER = "\x1e"
+
+
+def stream_error(detail):
+    return STREAM_ERROR_MARKER + json.dumps({"detail": detail})
 
 
 class ChatService:
@@ -36,17 +49,23 @@ class ChatService:
                 
         image_bytes, mime_type = ChatService._read_image(user_message)
 
+        # Raises before the response starts, so the view can return a 400.
+        prepared = chat_service.prepare(user_message.content, history_before=user_message.created_at)
+
         def stream():
             assistant_text = ""
 
-            for token in chat_service.stream_answer(
-                user_message.content,
-                image_bytes=image_bytes,
-                mime_type=mime_type,
-                history_before=user_message.created_at,
-            ):
-                assistant_text += token
-                yield token
+            try:
+                for token in chat_service.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type):
+                    assistant_text += token
+                    yield token
+            except ContextLimitExceededError as e:
+                yield stream_error(str(e))
+                return
+            except Exception:
+                logger.exception("Answer stream failed for chat %s", chat.id)
+                yield stream_error("The model stopped before finishing the answer. Try again.")
+                return
 
             Message.objects.create(
                 chat=chat,

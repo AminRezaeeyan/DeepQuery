@@ -49,6 +49,15 @@ class ChatGenerationService:
 
         
     def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None, history_before=None):
+        prepared = self.prepare(user_prompt, history_before=history_before)
+        yield from self.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type)
+
+    def prepare(self, user_prompt: str, history_before=None):
+        """
+        Everything before the first token: budget check, retrieval and prompt
+        building. Runs eagerly so its errors (e.g. ContextLimitExceededError)
+        reach the view before the response starts streaming.
+        """
         system_prompt = self._get_system_prompt()
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
@@ -115,9 +124,14 @@ class ChatGenerationService:
         # Background memory write
         if not self.is_temporary:
             self.memory.store_from_message(self.chat_id, user_prompt)
-        print(messages)
+
+        return {"messages": messages, "citation_map": citation_map}
+
+    def stream_prepared(self, prepared, image_bytes: bytes = None, mime_type: str = None):
+        citation_map = prepared["citation_map"]
+
         # Stream LLM output
-        for token in self.llm.stream(messages, image_bytes=image_bytes, mime_type=mime_type):
+        for token in self.llm.stream(prepared["messages"], image_bytes=image_bytes, mime_type=mime_type):
             yield token
 
         # 8. Append References List at the end of the stream
