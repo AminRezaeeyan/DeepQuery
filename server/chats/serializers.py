@@ -28,6 +28,12 @@ class AnswerOptionsSerializer(serializers.Serializer):
 
 class MessageSerializer(AnswerOptionsSerializer, serializers.ModelSerializer):
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Point at the authenticated endpoint; the stored path isn't served.
+        data["image"] = f"/api/messages/{instance.uuid}/image/" if instance.image else None
+        return data
+
     def validate_image(self, image):
         # ImageField already checks the bytes are a real image (Pillow).
         if image and image.size > settings.CHAT_IMAGE_MAX_UPLOAD_BYTES:
