@@ -13,7 +13,10 @@ def csv_list(value):
 
 # --- CORE SECURITY ---
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
+# Off unless .env turns it on, so a deployment never runs in debug mode by accident.
+DEBUG = config('DEBUG', default=False, cast=bool)
+# Encrypts provider API keys in the database (Fernet key). Empty: derived from SECRET_KEY.
+FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY', default='')
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=csv_list)
 
 # --- APP DEFINITION ---
