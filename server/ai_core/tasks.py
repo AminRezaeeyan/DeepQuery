@@ -131,8 +131,8 @@ def extract_and_embed_facts_task(user_id, chat_id, text, provider_id=None):
     
     for fact in facts:
 
+        # Facts are about the user, so a fact known from any chat is a duplicate.
         exists = MemoryFact.objects.filter(
-            chat_id=chat_id,
             user_id=user_id,
             fact__iexact=fact.strip()
         ).exists()

@@ -13,6 +13,10 @@ class LongTermMemoryService:
     - Formatting memory context for prompts
     """
 
+    # Below this similarity a memory is unrelated to the question. Matches the
+    # bar for web results (WebKnowledgeService.SCORE_THRESHOLD).
+    MIN_SCORE = 0.5
+
     def __init__(self, user_id, provider_id: Optional[int] = None, enabled=True):
         self.user_id = user_id
         self.provider_id = provider_id
@@ -72,7 +76,7 @@ class LongTermMemoryService:
         if not self.enabled:
             return ''
 
-        candidates = self.search(query=query, limit=max_candidates, min_score=0.1)
+        candidates = self.search(query=query, limit=max_candidates, min_score=self.MIN_SCORE)
 
         if not candidates or token_limit <= 0:
             return ""
