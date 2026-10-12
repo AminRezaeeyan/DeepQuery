@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, readStream } from "./api";
+import { describe, expect, it, vi } from "vitest";
+import { api, ApiError, readStream } from "./api";
 
 function streamOf(...chunks: string[]) {
   const encoder = new TextEncoder();
@@ -34,5 +34,27 @@ describe("readStream", () => {
     await readStream(streamOf("Partial \u001e", '{"detail": "x"}'), (t) => seen.push(t)).catch(() => undefined);
 
     expect(seen.every((t) => !t.includes("\u001e"))).toBe(true);
+  });
+});
+
+describe("editMessage", () => {
+  it("sends the answer options along with the new text", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("ok"));
+    vi.stubGlobal("fetch", fetchMock);
+    const opts = { webSearch: true, strictQuotes: true, challenge: false, depth: "High", audience: "Expert" } as const;
+
+    await api.editMessage("m1", "new question", opts, new AbortController().signal);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/messages/m1/");
+    expect(JSON.parse(init.body)).toEqual({
+      content: "new question",
+      enable_web_search: true,
+      strict_quote_mode: true,
+      challenge_mode: false,
+      reasoning_depth: "High",
+      audience_type: "Expert",
+    });
+    vi.unstubAllGlobals();
   });
 });
