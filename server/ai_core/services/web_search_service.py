@@ -143,7 +143,7 @@ class SerperProvider:
             "X-API-KEY": self.api_key,
             "Content-Type": "application/json"
         }
-        response = requests.post(self.url, json=payload, headers=headers)
+        response = requests.post(self.url, json=payload, headers=headers, timeout=10)
         response.raise_for_status()
 
         data = response.json()
@@ -168,7 +168,7 @@ class WebSearchService:
         try:
             return self.provider.search(query)
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.warning("Web search failed: %s", e)
             return []
 
 
@@ -200,7 +200,7 @@ class WebKnowledgeService:
         for url in urls_to_process:
             page_text = self.fetcher.fetch(url)
 
-            print(f"Fetched {len(page_text)} chars from {url}")
+            logger.info("Fetched %d chars from %s", len(page_text), url)
             if not page_text:
                 continue
 

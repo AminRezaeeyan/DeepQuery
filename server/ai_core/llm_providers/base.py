@@ -1,5 +1,8 @@
 PROVIDER_REGISTRY = {}
 
+# Seconds. Streaming reads wait at most this long between chunks.
+LLM_TIMEOUT = 120
+
 
 def register_provider(provider_name):
     """

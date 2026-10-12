@@ -1,7 +1,7 @@
 from google import genai
 from google.genai import types
 
-from ai_core.llm_providers.base import LLMProviderBase, register_provider, split_system_messages
+from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, register_provider, split_system_messages
 from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.token_service import TokenService
 
@@ -12,7 +12,10 @@ class GeminiProvider(LLMProviderBase):
     def __init__(self, provider_config):
         super().__init__(provider_config)
 
-        self.client = genai.Client(api_key=provider_config.api_key)
+        self.client = genai.Client(
+            api_key=provider_config.api_key,
+            http_options=types.HttpOptions(timeout=LLM_TIMEOUT * 1000),  # milliseconds
+        )
         self.model = provider_config.model_name
 
     def _convert_messages(self, messages, image_bytes=None, mime_type=None):

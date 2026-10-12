@@ -2,7 +2,7 @@ import base64
 
 import anthropic
 
-from ai_core.llm_providers.base import LLMProviderBase, register_provider, split_system_messages
+from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, register_provider, split_system_messages
 from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.token_service import TokenService
 
@@ -14,7 +14,8 @@ class ClaudeProvider(LLMProviderBase):
         super().__init__(provider_config)
 
         self.client = anthropic.Anthropic(
-            api_key=provider_config.api_key
+            api_key=provider_config.api_key,
+            timeout=LLM_TIMEOUT,
         )
 
         self.model = provider_config.model_name

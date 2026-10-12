@@ -1,5 +1,8 @@
 EMBEDDING_PROVIDER_REGISTRY = {}
 
+# Seconds per embedding request.
+EMBEDDING_TIMEOUT = 60
+
 
 def register_embedding_provider(provider_type: str):
     """
