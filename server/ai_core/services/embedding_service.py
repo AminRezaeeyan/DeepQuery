@@ -1,10 +1,10 @@
 import re
-from typing import List, Optional, Tuple
+from typing import List, Optional
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction, connection
 from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 from ai_core.exceptions import ProviderUnavailable
-from ai_core.models import EmbeddedObject, EmbeddingChunk, EmbeddingProvider
+from ai_core.models import EmbeddedObject, EmbeddingChunk
 
 
 class ChunkingService:

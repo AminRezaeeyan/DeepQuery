@@ -255,7 +255,6 @@ class EmbeddingProvider(models.Model):
         old_instance = None
         if not is_new:
             old_instance = EmbeddingProvider.objects.filter(pk=self.pk).first()
-            old_status = old_instance.status
         
         self.full_clean()
 

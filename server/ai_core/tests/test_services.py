@@ -1,8 +1,7 @@
 import pytest
 from unittest.mock import patch
-from django.contrib.contenttypes.models import ContentType
 
-from ai_core.models import AITaskConfig, EmbeddedObject, EmbeddingChunk
+from ai_core.models import EmbeddingChunk
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.services.task_provider_resolver import TaskProviderResolver
 from ai_core.llm_providers.factory import ProviderFactory
@@ -200,6 +199,5 @@ class TestEmbeddingService:
         assert len(results) > 0
         
         # Check the format of the result (assuming it returns tuples/dicts with eo_id and score)
-        first_result = results[0]
         # Example assertion (adjust depending on what service.search actually returns):
         # assert first_result['score'] == 1.0

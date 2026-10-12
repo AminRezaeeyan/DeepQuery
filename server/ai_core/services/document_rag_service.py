@@ -15,7 +15,6 @@ class DocumentRAGService:
     def __init__(self, chat_id: int , provider_id: Optional[int] = None):
         self.chat_id = chat_id
         self.embedding_service = EmbeddingService(provider_id=provider_id)
-        self.last_results: List[Tuple[Document, float]] = [] 
 
     def search(
         self,
@@ -36,7 +35,6 @@ class DocumentRAGService:
         )
 
 
-        self.last_results = results
         return results
 
 
@@ -59,8 +57,6 @@ class DocumentRAGService:
                 return "", []
 
             sorted_results = sorted(results, key=lambda x: x[1], reverse=True)
-            
-            self.last_results = sorted_results 
 
             total_tokens = 0
             selected_chunks: list[str] = []
