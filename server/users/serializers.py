@@ -51,6 +51,11 @@ class GoogleAuthSerializer(serializers.Serializer):
         except Exception:
             raise serializers.ValidationError("Invalid Google token.")
 
+        # Only trust the address if Google has verified it; otherwise anyone
+        # could sign into an existing account by claiming its email.
+        if idinfo.get("email_verified") is not True:
+            raise serializers.ValidationError("Your Google email address isn't verified.")
+
         email = idinfo["email"]
 
         user, _ = User.objects.get_or_create(
