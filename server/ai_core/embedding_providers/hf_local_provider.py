@@ -1,6 +1,5 @@
 import os
 from threading import Lock
-from sentence_transformers import SentenceTransformer
 from django.conf import settings
 from .base import EmbeddingProviderBase, register_embedding_provider
 
@@ -31,6 +30,7 @@ class HFLocalEmbeddingProvider(EmbeddingProviderBase):
         if model_name not in _loaded_models:
             with _load_lock:
                 if model_name not in _loaded_models:
+                    from sentence_transformers import SentenceTransformer
                     _loaded_models[model_name] = SentenceTransformer(
                         self.model_path, 
                         device="cpu"  # Force CPU for stability in web workers
@@ -51,6 +51,7 @@ class HFLocalEmbeddingProvider(EmbeddingProviderBase):
 
     def download_model(self):
         """Method to be called by a Celery task to perform the initial download."""
+        from sentence_transformers import SentenceTransformer
         model = SentenceTransformer(self.provider_config.model_name)
         model.save(self.model_path)
 

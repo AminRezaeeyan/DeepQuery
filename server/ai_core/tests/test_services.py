@@ -9,7 +9,7 @@ from ai_core.llm_providers.factory import ProviderFactory
 
 from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 from ai_core.embedding_providers.openai_provider import OpenAIEmbeddingProvider
-from server.ai_core.services.embedding_service import ChunkingService, EmbeddingService
+from ai_core.services.embedding_service import ChunkingService, EmbeddingService
 
 
 
@@ -98,7 +98,9 @@ class TestEmbeddingProviderFactory:
         assert provider.provider_type == "openai"
 
     def test_get_provider_by_id_fetches_correct_provider(self, openai_emb_provider, hf_local_provider):
-        provider = EmbeddingProviderFactory.get_provider(provider_id=hf_local_provider.id)
+        # The local provider loads its tokenizer from the Hugging Face Hub; keep the test offline.
+        with patch("transformers.AutoTokenizer.from_pretrained"):
+            provider = EmbeddingProviderFactory.get_provider(provider_id=hf_local_provider.id)
         assert provider.model_name == hf_local_provider.model_name
 
 
