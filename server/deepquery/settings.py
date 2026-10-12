@@ -5,10 +5,16 @@ from decouple import config # Recommended: pip install python-decouple
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def csv_list(value):
+    """Split a comma-separated env value into a list, dropping empty entries."""
+    return [item.strip() for item in value.split(',') if item.strip()]
+
+
 # --- CORE SECURITY ---
 SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-me-in-production')
 DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=csv_list)
 
 # --- APP DEFINITION ---
 INSTALLED_APPS = [
@@ -92,8 +98,8 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOWED_ORIGINS = config('CORS_ALLOWED_ORIGINS', 
-    default="http://localhost:3000,http://127.0.0.1:3000", 
-    cast=lambda v: [s.strip() for s in v.split(',')]
+    default="http://localhost:3000,http://127.0.0.1:3000,http://localhost:5500,http://127.0.0.1:5500",
+    cast=csv_list
 )
 
 SPECTACULAR_SETTINGS = {
