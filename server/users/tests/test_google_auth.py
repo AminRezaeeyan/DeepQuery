@@ -16,7 +16,8 @@ class TestGoogleAuth:
         mock_verify.return_value = {
             "email": "existinguser@test.com",
             "given_name": "Google",
-            "family_name": "User"
+            "family_name": "User",
+            "email_verified": True,
         }
 
         old_users_count = User.objects.count()
@@ -51,3 +52,16 @@ class TestGoogleAuth:
         )
 
         assert response.status_code == 400
+
+@pytest.mark.django_db
+class TestGoogleAuthRequiresVerifiedEmail:
+
+    @pytest.mark.parametrize("claims", [{"email_verified": False}, {}])
+    @patch("users.serializers.id_token.verify_oauth2_token")
+    def test_unverified_email_cannot_sign_in(self, mock_verify, api_client, google_auth_url, existing_user, claims):
+        mock_verify.return_value = {"email": existing_user.email, **claims}
+
+        response = api_client.post(google_auth_url, {"token": "fake-token"}, format="json")
+
+        assert response.status_code == 400
+        assert "tokens" not in response.data
