@@ -39,7 +39,7 @@ class SubscriptionService:
             pass
         
         # Fallback to free plan if no active subscription
-        free_plan = Plan.objects.get(name="Free")
+        free_plan = Plan.objects.get(name=Plan.PlanType.FREE)
         return free_plan
     
     @staticmethod
@@ -118,10 +118,6 @@ class SubscriptionService:
             "amount": int(plan.price), 
             "callback_url": callback_url, 
             "description": f"Subscription for {plan.name} plan", 
-            "mobile": "09123456789",  
-            "email": "customer@example.com",  
-            "cardPan": ["6219861034529007", "5022291073776543"], 
-            "referrer_id": "affiliate123", 
             })
 
             if "data" in response and "authority" in response["data"]:
@@ -176,16 +172,11 @@ class SubscriptionService:
                 user = payment.user
                 plan = payment.plan
 
-                # Deactivate any existing active subscriptions for this user
-                UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
-
-                # Create the new subscription
-                UserSubscription.objects.create(
+                # A user has exactly one subscription row: move it to the paid plan.
+                now = timezone.now()
+                UserSubscription.objects.update_or_create(
                     user=user,
-                    plan=plan,
-                    start_date=timezone.now().date(),
-                    end_date=timezone.now().date() + timedelta(days=30),
-                    is_active=True
+                    defaults={"plan": plan, "start_date": now, "end_date": now + timedelta(days=30)},
                 )
                 return {"message": "Payment successful. Subscription updated.", "ref_id": payment.ref_id}
             else:
