@@ -40,6 +40,9 @@ server/.env
 # Django specific
 server/db.sqlite3
 server/media/
+# Uploaded files (Message.image and Document.file upload paths)
+server/chat_images/
+server/user_documents/
 server/staticfiles/
 
 # Testing
