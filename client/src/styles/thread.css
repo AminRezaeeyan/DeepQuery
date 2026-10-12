@@ -663,3 +663,11 @@ button.cite:focus-visible::after {
     opacity: 1;
   }
 }
+
+.bubble-img--loading {
+  display: block;
+  width: 180px;
+  height: 120px;
+  background: var(--surface-3);
+  animation: breathe 1.4s ease-in-out infinite;
+}
