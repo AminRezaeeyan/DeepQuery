@@ -1,4 +1,4 @@
-from rest_framework import viewsets, status, mixins
+from rest_framework import viewsets, mixins
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import action
@@ -6,7 +6,6 @@ from rest_framework.exceptions import ValidationError
 from django.http import StreamingHttpResponse
 from django.db.models import Q
 
-from ai_core.services.chat_service import ChatTitleGenerator
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable, ContextLimitExceededError
 from chats.services.chat_service import ChatService

@@ -6,22 +6,6 @@ from chats.models import Chat, Message
 from ai_core.exceptions import ProviderUnavailable
 
 
-class MockChatGenerationService:
-    def __init__(self, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type='General', reasoning_depth='Low', challenge_mode=False):
-        self.chat_id = chat_id
-        self.provider_id = provider_id
-        self.is_temporary = is_temporary
-
-    def stream_answer(self, content):
-        yield "Fake "
-        yield "stream "
-        yield "response!"
-
-class MockFailingChatGenerationService:
-    def __init__(self, chat_id, provider_id=None, is_temporary=False, enable_web_search=False, strict_quote_mode=False, audience_type='General', reasoning_depth='Low', challenge_mode=False):
-        raise ProviderUnavailable("Provider is down")
-
-
 @pytest.mark.django_db
 class TestListChats:
     

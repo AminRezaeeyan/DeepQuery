@@ -5,4 +5,4 @@ class DocumentsConfig(AppConfig):
     name = 'documents'
 
     def ready(self):
-        import documents.signals
+        import documents.signals  # noqa: F401  (registers signal handlers)

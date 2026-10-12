@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Optional
 from ai_core.services.embedding_service import EmbeddingService
 from ai_core.tasks import extract_and_embed_facts_task
 from ai_core.models import MemoryFact

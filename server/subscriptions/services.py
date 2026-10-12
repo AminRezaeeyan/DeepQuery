@@ -8,7 +8,6 @@ from django.db.models import F
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Plan, UserSubscription, Payment, UserUsage
-from chats.models import Message
 from zarinpal import ZarinPal
 
 # Seconds per request to the payment gateway.

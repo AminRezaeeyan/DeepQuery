@@ -4,7 +4,7 @@ import mimetypes
 
 from django.db.models import Count
 from chats.models import Chat, Message
-from ai_core.exceptions import ContextLimitExceededError, ProviderUnavailable
+from ai_core.exceptions import ContextLimitExceededError
 from ai_core.services.chat_service import ChatGenerationService
 
 logger = logging.getLogger(__name__)
@@ -42,10 +42,7 @@ class ChatService:
     @staticmethod
     def generate_stream(chat, user_message, enable_web_search=False, strict_quote_mode=False, audience_type="General", reasoning_depth="Medium", challenge_mode=False, on_incomplete=None):
  
-        try:
-            chat_service = ChatGenerationService(chat.user_id, chat.id, chat.provider_id, is_temporary=chat.is_temporary, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode)
-        except ProviderUnavailable:
-            raise
+        chat_service = ChatGenerationService(chat.user_id, chat.id, chat.provider_id, is_temporary=chat.is_temporary, enable_web_search=enable_web_search, strict_quote_mode=strict_quote_mode, audience_type=audience_type, reasoning_depth=reasoning_depth, challenge_mode=challenge_mode)
                 
         image_bytes, mime_type = ChatService._read_image(user_message)
 

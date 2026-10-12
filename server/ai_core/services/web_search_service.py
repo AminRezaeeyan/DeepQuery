@@ -10,7 +10,6 @@ from bs4 import BeautifulSoup
 from django.conf import settings
 
 from ai_core.services.llm_service import LLMService
-from ai_core.services.token_service import TokenService
 from documents.models import Document
 from .embedding_service import EmbeddingService
 

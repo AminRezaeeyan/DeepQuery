@@ -1,10 +1,9 @@
 import pytest
 from unittest.mock import patch
 from django.contrib.auth import get_user_model
-from django.contrib.contenttypes.models import ContentType
 
 from ai_core.embedding_providers.openai_provider import OpenAIEmbeddingProvider
-from ai_core.models import EmbeddedObject, EmbeddingChunk, EmbeddingProvider, MemoryFact
+from ai_core.models import EmbeddedObject, EmbeddingProvider, MemoryFact
 from ai_core.services.embedding_service import EmbeddingService
 from ai_core.tasks import finish_provider_switch, reembed_all_objects
 

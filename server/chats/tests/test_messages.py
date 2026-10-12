@@ -1,19 +1,6 @@
 import pytest
-from unittest.mock import patch
 from rest_framework import status
 
-from chats.models import Message
-
-
-class MockChatGenerationService:
-    def __init__(self, chat_id, provider_id=None):
-        self.provider_id = provider_id
-        self.chat_id = chat_id
-
-    def stream_answer(self, content):
-        yield "Edited "
-        yield "fake "
-        yield "response!"
 
 
 @pytest.mark.django_db

@@ -3,7 +3,6 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from ai_core.models import LLMProvider, AITaskConfig
 from ai_core.models import EmbeddingProvider
-from ai_core.embedding_providers.base import EmbeddingProviderBase, register_embedding_provider
 
 @pytest.fixture
 def openai_provider():
