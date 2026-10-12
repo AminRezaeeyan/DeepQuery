@@ -14,11 +14,19 @@ import type {
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 const TOKEN_KEY = "dq-access";
+const REFRESH_KEY = "dq-refresh";
 
 export const tokenStore = {
   get: () => localStorage.getItem(TOKEN_KEY),
-  set: (t: Tokens) => localStorage.setItem(TOKEN_KEY, t.access),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  getRefresh: () => localStorage.getItem(REFRESH_KEY),
+  set: (t: Partial<Tokens>) => {
+    if (t.access) localStorage.setItem(TOKEN_KEY, t.access);
+    if (t.refresh) localStorage.setItem(REFRESH_KEY, t.refresh);
+  },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+  },
 };
 
 export class ApiError extends Error {
@@ -61,7 +69,30 @@ function toPath(url: string): string {
   }
 }
 
-async function request(path: string, init: RequestInit = {}): Promise<Response> {
+// One refresh at a time: parallel 401s all wait for the same attempt.
+let refreshing: Promise<boolean> | null = null;
+
+function refreshAccess(): Promise<boolean> {
+  const refresh = tokenStore.getRefresh();
+  if (!refresh) return Promise.resolve(false);
+  refreshing ??= fetch(API_BASE + "/auth/token/refresh/", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh }),
+  })
+    .then(async (res) => {
+      if (!res.ok) return false;
+      tokenStore.set((await res.json()) as Partial<Tokens>);
+      return true;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+async function request(path: string, init: RequestInit = {}, retry = true): Promise<Response> {
   const headers = new Headers(init.headers);
   const token = tokenStore.get();
   if (token) headers.set("Authorization", `Bearer ${token}`);
@@ -70,6 +101,8 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
   const res = await fetch(API_BASE + path, { ...init, headers });
 
   if (res.status === 401 && token) {
+    // The access token lasts an hour; trade the refresh token for a new one and retry once.
+    if (retry && (await refreshAccess())) return request(path, init, false);
     tokenStore.clear();
     onUnauthorized();
   }
