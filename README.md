@@ -28,7 +28,7 @@ Engineered with token efficiency and safety in mind, DeepQuery doesn't just summ
 
 ### 🛠️ Specialized Research Tools
 DeepQuery offers granular control over the AI's behavior via specialized chat modes:
-*   **Temporary Chats:** Disable long-term memory and storage for sensitive or one-off inquiries.
+*   **Temporary Chats:** For sensitive or one-off inquiries: the chat never reads or updates long-term memory and disappears from your history once you leave it.
 *   **Strict Quote Mode:** Forces the agent to answer using direct, verbatim quotes from documents/websites without altering the original context.
 *   **Challenge Mode:** The AI critically analyzes its own synthesis to identify gaps, biases, or missing perspectives.
 *   **Audience Targeting:** Toggle explanations between *General* or *Expert* levels.

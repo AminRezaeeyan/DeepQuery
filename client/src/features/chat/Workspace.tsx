@@ -90,7 +90,8 @@ export function Workspace() {
   }, [chatId]);
 
   const upsertChat = useCallback((chat: Chat) => {
-    setChats((c) => [chat, ...c.filter((x) => x.uuid !== chat.uuid)]);
+    // Temporary chats never appear in history, like the server's list.
+    setChats((c) => (chat.is_temporary ? c.filter((x) => x.uuid !== chat.uuid) : [chat, ...c.filter((x) => x.uuid !== chat.uuid)]));
     setCurrent((cur) => (cur?.uuid === chat.uuid || !cur ? chat : cur));
   }, []);
 
