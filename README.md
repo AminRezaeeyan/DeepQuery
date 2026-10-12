@@ -12,44 +12,48 @@
 
 ## 📖 Overview
 
-**DeepQuery** is a professional-grade AI Research Assistant designed to process, analyze, and synthesize complex information from multiple sources. Utilizing Retrieval-Augmented Generation (RAG), it seamlessly handles multi-document uploads, web searches, and image processing while maintaining both short-term context and long-term memory. 
+**DeepQuery** is an AI research assistant. You ask a question; it answers from the documents you upload, from web pages it searches for, and from what it remembers about you, and it cites the sources it used. It uses Retrieval-Augmented Generation (RAG) over PostgreSQL + pgvector and streams answers from the LLM provider you configure.
 
-Engineered with token efficiency and safety in mind, DeepQuery doesn't just summarize—it critically analyzes data, detects conflicting information across sources, and provides precise citations for every claim.
+It's also a portfolio project, so the README describes what works today, not what's planned.
 
 ## ✨ Key Features
 
-### 🧠 Advanced AI & RAG Capabilities
-*   **Intelligent Memory:** Utilizes both short-term conversational context and long-term memory retrieval.
-*   **Multi-Modal Processing:** Supports concurrent analysis of multiple document formats (PDFs, Excel, etc.) and images.
-*   **Web Search Integration:** Enhances localized knowledge with real-time web context.
-*   **Conflict Detection:** Automatically cross-references multiple documents and flags conflicting information between sources.
-*   **Precise Citations:** Every piece of synthesized knowledge is tracked back to its specific document or web source.
-*   **Token Efficiency:** Highly optimized prompt engineering and a "safety buffer" mechanism prevent token waste and context window choking.
+### 🧠 Research & RAG
+*   **Document Q&A:** Upload PDF, TXT, Markdown, CSV, XLSX, JSON and code files to a chat. They're chunked, embedded and searched for every question in that chat.
+*   **Web Search:** Optionally searches the web (via Serper), fetches the top pages and adds them to the chat's sources. URLs pasted into a question are fetched too, public addresses only.
+*   **Citations:** The model is instructed to cite sources as `[1]`, `[2]`, and every answer ends with the list of sources that were retrieved for it. Whether each claim carries a citation depends on the model following that instruction.
+*   **Conflicting Sources:** The model is instructed to point out when sources disagree ("Source [1] says X, but Source [2] says Y"). There's no separate conflict-detection step.
+*   **Images:** Attach one image to a message when the selected model supports vision.
+*   **Memory:** Recent chat history is included in each prompt. Personal facts you mention (in English or Persian) are extracted in the background and recalled in later chats when they're relevant.
+*   **Token Budgets:** Each prompt section (sources, memory, history) gets a share of the model's context window, with room reserved for the answer and a safety margin.
 
-### 🛠️ Specialized Research Tools
-DeepQuery offers granular control over the AI's behavior via specialized chat modes:
+### 🛠️ Answer Settings
+Set per message in the composer:
 *   **Temporary Chats:** For sensitive or one-off inquiries: the chat never reads or updates long-term memory and disappears from your history once you leave it.
-*   **Strict Quote Mode:** Forces the agent to answer using direct, verbatim quotes from documents/websites without altering the original context.
-*   **Challenge Mode:** The AI critically analyzes its own synthesis to identify gaps, biases, or missing perspectives.
-*   **Audience Targeting:** Toggle explanations between *General* or *Expert* levels.
-*   **Reasoning Depth:** Adjust processing depth (Low, Medium, High) depending on whether you need a quick summary or a deep analytical breakdown.
+*   **Strict Quote Mode:** Asks the model to back each major claim with a verbatim quote from the sources.
+*   **Challenge Mode:** Asks the model to point out gaps, biases and missing perspectives in its own answer.
+*   **Audience:** *General* or *Expert*.
+*   **Depth:** Brief, balanced or deep answers (Low, Medium, High).
 
-### ⚙️ Powerful Admin & Monetization
-Built with Django Jazzmin, the admin panel provides complete operational control:
-*   **LLM & Embedding Management:** Easily toggle and configure local models or API providers (OpenAI, Anthropic, Gemini, HuggingFace).
-*   **User Activity:** Monitor chats, messages, and system usage.
-*   **Subscription & Billing:** Manage subscription tiers, daily limits (messages, images, documents), and process payments via the Zarinpal SDK.
+### ⚙️ Admin & Billing
+Built with Django Jazzmin:
+*   **Models:** Configure LLM providers (OpenAI and OpenAI-compatible APIs, Anthropic Claude, Google Gemini, Ollama) and embedding providers (OpenAI, Gemini, local Hugging Face models). API keys are encrypted in the database and never shown again after saving. Switching the active embedding provider re-embeds stored content in the background.
+*   **Activity:** Browse chats, messages, documents and memory facts; restore deleted chats.
+*   **Plans & Payments:** Daily limits per plan (messages, documents, images) and payments through ZarinPal.
 
-### 🏗️ Enterprise-Grade Architecture
-*   **Clean & Decoupled:** Apps are heavily decoupled based on domain logic, ensuring near-zero coupling.
-*   **Auto-Registry Factory Pattern:** Easily plug-and-play new LLMs or embedding providers without touching core logic.
-*   **Asynchronous Processing:** Celery and Redis handle heavy embedding tasks and background jobs (like chat title generation) to keep the UI perfectly responsive.
-*   **Robust Security:** Secured via JWT, CORS, and strict Django permission classes. Includes unit tests for mission-critical components.
+### 🏗️ Architecture
+*   **Django apps by domain:** users, chats, documents, ai_core (providers, RAG, memory, web search) and subscriptions.
+*   **Provider registry:** New LLM or embedding providers register with a decorator; the factories need no changes.
+*   **Background work:** Celery and Redis run document indexing, chat titles, memory extraction and re-embedding.
+*   **Security:** JWT auth with token refresh, sign-in required by default, rate-limited sign-in, password validation, per-user data access, upload checks (ownership, size and file content), and retrieved text passed to the model as untrusted data.
+*   **Tests:** About 180 server tests (pytest) and a client suite (Vitest), run by GitHub Actions on every push. The Claude, Gemini and Ollama providers are tested against mocked SDKs; the OpenAI-compatible provider has also been used against a live API.
 *   **Web Client:** A React + TypeScript + Vite app in `client/` with dark and light themes (see `client/README.md`).
 
 ---
 
 ## 📸 Screenshots
+
+*These show the earlier vanilla-JS client; the React client looks different.*
 
 
 | Main Interface | Image Upload Usage |
@@ -64,37 +68,63 @@ Built with Django Jazzmin, the admin panel provides complete operational control
 
 ## 💻 Tech Stack
 
-**Core Framework & API:**
-*   Python 3.x
-*   Django `6.0.3` & Django REST Framework `3.17.1`
-*   SimpleJWT, drf-spectacular (Swagger/OpenAPI)
-*   Django-Jazzmin (Admin UI)
+**Server:**
+*   Python 3.10+ (CI runs 3.12)
+*   Django `6.0.3`, Django REST Framework `3.17.1`, SimpleJWT, drf-spectacular (Swagger/OpenAPI), Django Jazzmin
+*   PostgreSQL + `pgvector`, Redis, Celery `5.6`
+*   OpenAI, Anthropic and Google GenAI SDKs, sentence-transformers, tiktoken
+*   pdfplumber, pandas, openpyxl, BeautifulSoup4
 
-**Database & Task Queue:**
-*   PostgreSQL + `pgvector` (Vector Search)
-*   Redis `7.4` & Celery `5.6`
-
-**AI & LLM Integration:**
-*   OpenAI, Anthropic, Google GenAI, HuggingFace Hub
-*   Tiktoken
-
-**Data Processing:**
-*   Pandas, Numpy, PDFPlumber, PyPDFium2
-*   BeautifulSoup4, Openpyxl
+**Client:**
+*   React, TypeScript, Vite, Vitest
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-*   Python 3.10+
-*   PostgreSQL (with `pgvector` extension installed)
-*   Redis Server
+*   Python 3.10+ and Node.js 20+
+*   PostgreSQL with the `pgvector` extension (on Ubuntu: `sudo apt install postgresql-16-pgvector`)
+*   Redis
 
-### Installation
+### 1. Server
 
-1. **Clone the repository:**
 ```bash
-   git clone https://github.com/aminrezaeeyan/DeepQuery.git
-   cd DeepQuery
-   
+git clone https://github.com/aminrezaeeyan/DeepQuery.git
+cd DeepQuery/server
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env                 # then edit: database, SERPER_API_KEY, ...
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver           # API on http://localhost:8000
+```
+
+> **Known issue:** chat currently fails to start an answer when `SERPER_API_KEY` is empty, even with web search off. Set it to any value if you don't need web search.
+
+In a second terminal, from `server/`:
+
+```bash
+celery -A deepquery worker -l info
+```
+
+### 2. Configure models
+
+Open the admin at http://localhost:8000/admin/ and add:
+1. an **LLM provider** (for example OpenAI with your API key). The first one is used for every task: chat, titles, memory and search queries.
+2. an **embedding provider** (for example OpenAI `text-embedding-3-small`, dimension 1536). The first one becomes active.
+
+### 3. Client
+
+```bash
+cd client
+npm install
+npm run dev                          # http://localhost:5173
+```
+
+### Tests
+
+```bash
+cd server && pytest                  # needs PostgreSQL with pgvector
+cd client && npm test
+```
