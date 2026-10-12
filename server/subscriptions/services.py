@@ -1,3 +1,4 @@
+import functools
 from datetime import timedelta
 from django.conf import settings
 from django.urls import reverse
@@ -9,6 +10,9 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Plan, UserSubscription, Payment, UserUsage
 from chats.models import Message
 from zarinpal import ZarinPal
+
+# Seconds per request to the payment gateway.
+ZARINPAL_TIMEOUT = 15
 
 class SubscriptionLimitExceeded(PermissionDenied):
     pass
@@ -26,7 +30,11 @@ def get_zarinpal():
         sandbox=settings.ZARINPAL_SANDBOX,
         access_token=settings.ZARINPAL_ACCESS_TOKEN
     )
-    return ZarinPal(config)
+    zarinpal = ZarinPal(config)
+    # The SDK's sessions have no timeout; give every request one.
+    for session in (zarinpal.http_client, zarinpal.graphql_client):
+        session.request = functools.partial(session.request, timeout=ZARINPAL_TIMEOUT)
+    return zarinpal
 
 
 class SubscriptionService:

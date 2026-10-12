@@ -1,5 +1,5 @@
 import base64
-from ai_core.llm_providers.base import LLMProviderBase, register_provider
+from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, register_provider
 from openai import BadRequestError, OpenAI
 from ai_core.exceptions import ContextLimitExceededError
 
@@ -10,7 +10,8 @@ class OpenAIProvider(LLMProviderBase):
         super().__init__(provider_config)
         self.client = OpenAI(
             api_key=provider_config.api_key,
-            base_url=provider_config.base_url
+            base_url=provider_config.base_url,
+            timeout=LLM_TIMEOUT,
         )
         self.model = provider_config.model_name
 
