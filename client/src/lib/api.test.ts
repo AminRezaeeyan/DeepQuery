@@ -58,3 +58,17 @@ describe("editMessage", () => {
     vi.unstubAllGlobals();
   });
 });
+
+describe("searchChats", () => {
+  it("reads a page and follows the next link on the same origin", async () => {
+    const fetchMock = vi.fn(async (_url: string) => Response.json({ next: "http://127.0.0.1:8000/api/chats/search/?cursor=abc&q=solar", previous: null, results: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const page = await api.searchChats("solar power");
+    await api.searchChats("solar power", page.next);
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/chats/search/?q=solar%20power");
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/chats/search/?cursor=abc&q=solar");
+    vi.unstubAllGlobals();
+  });
+});

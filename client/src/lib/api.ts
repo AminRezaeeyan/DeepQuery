@@ -142,7 +142,8 @@ export const api = {
 
   chats: (next?: string | null) => json<Page<Chat>>(next ? toPath(next) : "/api/chats/"),
 
-  searchChats: (q: string) => json<Chat[]>(`/api/chats/search/?q=${encodeURIComponent(q)}`),
+  searchChats: (q: string, next?: string | null) =>
+    json<Page<Chat>>(next ? toPath(next) : `/api/chats/search/?q=${encodeURIComponent(q)}`),
 
   chat: (uuid: string) => json<Chat>(`/api/chats/${uuid}/`),
 
