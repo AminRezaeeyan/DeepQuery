@@ -89,7 +89,7 @@ class ChatService:
             return f.read(), mime_type
 
     @staticmethod
-    def edit_user_message(old_message, new_content, on_incomplete=None):
+    def edit_user_message(old_message, new_content, on_incomplete=None, **answer_options):
         chat = old_message.chat
 
         # 1. Mark old user message deleted
@@ -114,10 +114,11 @@ class ChatService:
         new_user_message = Message.objects.create(
             chat=chat,
             role=Message.Role.USER,
-            content=new_content
+            content=new_content,
+            image=old_message.image,
         )
 
-        return ChatService.generate_stream(chat, new_user_message, on_incomplete=on_incomplete)
+        return ChatService.generate_stream(chat, new_user_message, on_incomplete=on_incomplete, **answer_options)
     
     @staticmethod
     def get_message_pairs(chat_id, cursor=None, limit=20):
