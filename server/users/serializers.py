@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.conf import settings
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -10,6 +12,14 @@ class RegisterSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, min_length=8)
     first_name = serializers.CharField(required=False, allow_blank=True)
     last_name = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        candidate = User(email=data["email"], first_name=data.get("first_name", ""), last_name=data.get("last_name", ""))
+        try:
+            validate_password(data["password"], user=candidate)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({"password": list(e.messages)})
+        return data
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)

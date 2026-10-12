@@ -89,8 +89,21 @@ STATIC_URL = 'static/'
 # --- API & AUTH ---
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ("rest_framework_simplejwt.authentication.JWTAuthentication",),
+    # Every endpoint needs a signed-in user unless it opts out explicitly.
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {
+        # Sign-in, sign-up and token refresh, per client IP.
+        "auth": config("AUTH_THROTTLE_RATE", default="10/minute"),
+    },
 }
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
@@ -106,6 +119,7 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "DeepQuery API",
     "DESCRIPTION": "API documentation for the backend",
     "VERSION": "1.0.0",
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.AllowAny"],
 }
 
 # --- EXTERNAL SERVICES ---
