@@ -210,12 +210,12 @@ class EmbeddingService:
             FROM ai_core_embeddingchunk c
         """
         
-        join_sql = ""
-        where_clauses = []
+        join_sql = " INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id "
 
-        # Add JOIN if we need to filter on the EmbeddedObject table
-        if content_model or tag:
-            join_sql = " INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id "
+        # Only compare against vectors from the model that embedded the query;
+        # during a provider switch, chunks from two models coexist.
+        where_clauses = ["eo.provider_id = %s"]
+        params.append(self.provider.provider_model.id)
 
         # Optional filtering by model type
         if content_model:
