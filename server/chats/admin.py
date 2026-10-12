@@ -111,6 +111,10 @@ class ChatAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_queryset(self, request):
+        # The default manager hides deleted chats, which made them impossible to restore.
+        return Chat.all_objects.all()
+
     def short_uuid(self, obj):
         return str(obj.uuid)[:8]
     short_uuid.short_description = "Chat ID"
@@ -127,7 +131,8 @@ class ChatAdmin(admin.ModelAdmin):
     soft_delete_chats.short_description = "Soft delete selected chats"
 
     def restore_chats(self, request, queryset):
-        queryset.update(is_deleted=False, deleted_at=None)
+        for chat in queryset:
+            chat.restore()
         self.message_user(request, f"{queryset.count()} chats restored.")
 
     restore_chats.short_description = "Restore deleted chats"
