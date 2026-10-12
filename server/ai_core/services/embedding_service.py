@@ -203,8 +203,8 @@ class EmbeddingService:
 
         base_sql = """
             SELECT
-                c.id,
-                c.embedded_object_id,
+                eo.content_type_id,
+                eo.object_id,
                 1 - (c.embedding <=> %s::vector) AS score,
                 c.text
             FROM ai_core_embeddingchunk c
@@ -240,11 +240,22 @@ class EmbeddingService:
             cur.execute(query_sql, params)
             rows = cur.fetchall()
 
+        # Load the matched objects with one query per content type, not two per row.
+        ids_by_type = {}
+        for ct_id, object_id, _, _ in rows:
+            ids_by_type.setdefault(ct_id, set()).add(object_id)
+
+        objects = {}
+        for ct_id, ids in ids_by_type.items():
+            model = ContentType.objects.get_for_id(ct_id).model_class()
+            for obj in model._default_manager.filter(pk__in=ids):
+                objects[(ct_id, str(obj.pk))] = obj
+
         results = []
-        for chunk_id, eo_id, score, text in rows:
-            eo = EmbeddedObject.objects.select_related("content_type").get(id=eo_id)
-            obj = eo.content_type.get_object_for_this_type(id=eo.object_id)
-            results.append((obj, score, text))
+        for ct_id, object_id, score, text in rows:
+            obj = objects.get((ct_id, object_id))
+            if obj is not None:  # the source was deleted since it was embedded
+                results.append((obj, score, text))
 
 
         return results
