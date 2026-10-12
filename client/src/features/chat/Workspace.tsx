@@ -32,6 +32,7 @@ export function Workspace() {
   const [chatsNext, setChatsNext] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Chat[] | null>(null);
+  const [resultsNext, setResultsNext] = useState<string | null>(null);
   const [models, setModels] = useState<Model[]>([]);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [current, setCurrent] = useState<Chat | null>(null);
@@ -58,6 +59,16 @@ export function Workspace() {
     api.subscription().then(setSubscription, () => undefined);
   }, [onError]);
 
+  const loadMoreResults = useCallback(() => {
+    if (!resultsNext) return;
+    const next = resultsNext;
+    setResultsNext(null);
+    api.searchChats(query, next).then((p) => {
+      setResults((r) => [...(r ?? []), ...p.results]);
+      setResultsNext(p.next);
+    }, () => undefined);
+  }, [query, resultsNext]);
+
   const loadMoreChats = useCallback(() => {
     if (!chatsNext) return;
     const next = chatsNext;
@@ -72,7 +83,17 @@ export function Workspace() {
   useEffect(() => {
     const q = query.trim();
     if (!q) return setResults(null);
-    const t = window.setTimeout(() => api.searchChats(q).then(setResults, () => setResults([])), 220);
+    const t = window.setTimeout(
+      () =>
+        api.searchChats(q).then(
+          (page) => {
+            setResults(page.results);
+            setResultsNext(page.next);
+          },
+          () => setResults([]),
+        ),
+      220,
+    );
     return () => window.clearTimeout(t);
   }, [query]);
 
@@ -271,8 +292,8 @@ export function Workspace() {
       <Sidebar
         chats={results ?? chats}
         activeId={chatId}
-        hasMore={!results && Boolean(chatsNext)}
-        onLoadMore={loadMoreChats}
+        hasMore={results ? Boolean(resultsNext) : Boolean(chatsNext)}
+        onLoadMore={results ? loadMoreResults : loadMoreChats}
         query={query}
         setQuery={setQuery}
         searching={Boolean(query.trim()) && results === null}
