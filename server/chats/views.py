@@ -30,7 +30,11 @@ class ChatViewSet(viewsets.ModelViewSet):
     pagination_class = ChatCursorPagination
 
     def get_queryset(self):
-        return Chat.objects.filter(user=self.request.user)
+        queryset = Chat.objects.filter(user=self.request.user)
+        # Temporary chats stay reachable by id while open, but never show up in history.
+        if self.action == "list":
+            queryset = queryset.filter(is_temporary=False)
+        return queryset
 
     def get_serializer_class(self):
         if self.action in ["update", "partial_update"]:
@@ -59,7 +63,7 @@ class ChatViewSet(viewsets.ModelViewSet):
         
         chats = (
             Chat.objects
-            .filter(user=request.user)
+            .filter(user=request.user, is_temporary=False)
             .filter(
                 Q(title__icontains=query) |
                 Q(messages__content__icontains=query)
