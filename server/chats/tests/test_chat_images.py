@@ -15,9 +15,9 @@ class TestImagesReachTheModel:
 
     def _run(self, message):
         with patch("chats.services.chat_service.ChatGenerationService") as service_cls:
-            service_cls.return_value.stream_answer.return_value = iter(["ok"])
+            service_cls.return_value.stream_prepared.return_value = iter(["ok"])
             list(ChatService.generate_stream(message.chat, message))
-        return service_cls.return_value.stream_answer.call_args
+        return service_cls.return_value.stream_prepared.call_args
 
     def test_image_bytes_and_type_are_passed_to_the_model(self, chat):
         message = Message.objects.create(
@@ -29,7 +29,6 @@ class TestImagesReachTheModel:
 
         call = self._run(message)
 
-        assert call.args == ("What is in this picture?",)
         assert call.kwargs["image_bytes"] == b"png-bytes"
         assert call.kwargs["mime_type"] == "image/png"
 

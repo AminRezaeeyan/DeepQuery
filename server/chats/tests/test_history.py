@@ -27,8 +27,8 @@ class TestCurrentQuestionIsSentOnce:
         chat, current = conversation
 
         with patch("chats.services.chat_service.ChatGenerationService") as service_cls:
-            service_cls.return_value.stream_answer.return_value = iter(["ok"])
+            service_cls.return_value.stream_prepared.return_value = iter(["ok"])
             list(ChatService.generate_stream(chat, current))
 
-        call = service_cls.return_value.stream_answer.call_args
+        call = service_cls.return_value.prepare.call_args
         assert call.kwargs["history_before"] == current.created_at
