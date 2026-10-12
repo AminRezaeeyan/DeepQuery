@@ -1,3 +1,5 @@
+from functools import cache
+
 import tiktoken
 
 
@@ -9,15 +11,20 @@ class TokenService:
     across most modern LLMs (OpenAI, Claude, Gemini approximations).
     """
 
-    _enc = tiktoken.get_encoding("cl100k_base")
-
     SAFETY_RATIO = 0.1
+
+    @staticmethod
+    @cache
+    def _encoding():
+        # Loaded on first use, not at import: tiktoken downloads the file
+        # unless it's already in TIKTOKEN_CACHE_DIR.
+        return tiktoken.get_encoding("cl100k_base")
 
     @classmethod
     def count_tokens(cls, text: str) -> int:
         if not text:
             return 0
-        return len(cls._enc.encode(text))
+        return len(cls._encoding().encode(text))
 
 
     @classmethod
