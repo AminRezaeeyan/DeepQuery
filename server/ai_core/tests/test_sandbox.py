@@ -107,3 +107,12 @@ def test_code_that_prints_is_left_alone(settings):
 
     assert run_python("x = 2\nprint(x)\nx = 3", []).stdout == "2\n"
     assert run_python("print('once')", []).stdout == "once\n"
+
+
+def test_parsing_model_code_does_not_warn_in_the_server():
+    import warnings
+    from ai_core.agent.sandbox import show_last_expression
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert "print(_value)" in show_last_expression("import re\nre.findall('\\s+', 'a b')")
