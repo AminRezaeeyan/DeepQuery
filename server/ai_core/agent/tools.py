@@ -112,7 +112,7 @@ class SearchDocuments:
     def run(self, context, query, limit=6):
         if not chat_documents(context).exists():
             return ToolOutput("No documents are attached to this chat.", f'Searched documents for "{query}" (none attached)')
-        results = EmbeddingService().search(query, content_model=Document, limit=max(1, min(int(limit), 10)), tag=f"chat:{context.chat_id}")
+        results = EmbeddingService().hybrid_search(query, content_model=Document, limit=max(1, min(int(limit), 10)), tag=f"chat:{context.chat_id}")
         parts = []
         for doc, score, text, location in results:
             n = context.sources.add(("doc", doc.id, location), filename=doc.original_filename, url=doc.source_url, location=location)
