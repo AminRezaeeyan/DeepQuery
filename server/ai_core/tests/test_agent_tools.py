@@ -228,3 +228,32 @@ def test_the_same_source_keeps_its_number():
     assert registry.add(("doc", 1, "p. 7"), filename="a.pdf", location="p. 7") == 2
     assert registry.add(("doc", 1, "p. 6"), filename="a.pdf", location="p. 6") == 1
     assert registry.label(2) == "a.pdf, p. 7"
+
+
+@pytest.mark.django_db
+class TestFindText:
+
+    def test_finds_every_line_with_all_the_words_and_cites_its_page(self, context):
+        add_document(context, "refined.pdf", [
+            {"label": "p. 3", "text": "We use fine-grained entity types\nfrom Wikidata."},
+            {"label": "p. 11", "text": "Hyperparameter Value\n# candidates 30\n# entity types 1400\nmention transformer init. roberta-base"},
+        ])
+
+        output = run_tool("find_text", {"text": "Entity Types"}, context)
+
+        assert output.text.splitlines() == [
+            "[1] (refined.pdf, p. 3) We use fine-grained entity types / from Wikidata.",
+            "[2] (refined.pdf, p. 11) # candidates 30 / # entity types 1400 / mention transformer init. roberta-base",
+        ]
+        assert output.summary == 'Found "Entity Types" · 2 lines'
+
+    def test_says_plainly_when_nothing_matches(self, context):
+        add_document(context, "refined.pdf", PAGES)
+
+        assert run_tool("find_text", {"text": "inter-annotator", "name": "refined"}, context).text == \
+            "No line in refined contains all of: inter, annotator."
+
+    def test_matches_persian_across_letter_forms(self, context):
+        add_document(context, "notes.md", [{"label": None, "text": "بودجه: ۴۰۰ دلار\nکتابخانه ملی"}])
+
+        assert "کتابخانه ملی" in run_tool("find_text", {"text": "كتابخانه"}, context).text
