@@ -8,7 +8,9 @@ step limit. Yields events for the stream:
     {"type": "reset"}             rare: streamed text turned out to be a preamble; drop it
 """
 import json
+import logging
 
+from ai_core.exceptions import ProviderStalled
 from ai_core.services.token_service import TokenService
 
 from .tools import ToolContext, describe_call, run_tool
@@ -16,6 +18,10 @@ from .tools import ToolContext, describe_call, run_tool
 # A turn's text is held back until it's this long: models often write a short
 # preamble ("Let me search the documents.") before calling tools, which isn't the answer.
 PREAMBLE_CHARS = 200
+# A turn whose stream stalls or drops is tried again once from the start.
+TURN_ATTEMPTS = 2
+
+logger = logging.getLogger(__name__)
 
 
 def content_text(content) -> str:
@@ -52,18 +58,16 @@ class ResearchAgent:
             # Out of steps or room: the last turn must answer with what it has.
             final = turn == self.max_steps or conversation_tokens(messages) > self.token_budget
             choice = "none" if final else (self.first_tool if turn == 0 and self.first_tool else "auto")
-            text, calls, streaming = "", None, choice == "none"
-            for kind, value in self.provider.stream_turn(messages, self.tools, tool_choice=choice):
-                if kind == "text":
-                    text += value
-                    if streaming:
-                        yield {"type": "text", "text": value}
-                    elif len(text) >= PREAMBLE_CHARS:
-                        # Long enough to be the answer rather than "Let me check...": stream it.
-                        streaming = True
-                        yield {"type": "text", "text": text}
-                else:
-                    calls = value
+            for attempt in range(1, TURN_ATTEMPTS + 1):
+                try:
+                    text, calls, streaming = yield from self._turn(messages, choice)
+                    break
+                except ProviderStalled:
+                    if attempt == TURN_ATTEMPTS:
+                        raise
+                    logger.warning("The model's stream stalled; retrying the turn")
+                    if self._streamed:
+                        yield {"type": "reset"}  # drop the partial text before the retry streams
 
             if not calls:
                 if text and not streaming:
@@ -94,3 +98,21 @@ class ResearchAgent:
                 messages.append({"role": "tool", "tool_call_id": call.id, "content": output_text})
                 yield {"type": "step", "id": step_id, "tool": call.name, "arguments": call.arguments, "status": "done",
                        "summary": summary, "output": output_text}
+
+    def _turn(self, messages, choice):
+        """Streams one model turn; returns (text, tool calls or None, whether text was streamed)."""
+        text, calls, streaming = "", None, choice == "none"
+        self._streamed = False
+        for kind, value in self.provider.stream_turn(messages, self.tools, tool_choice=choice):
+            if kind == "text":
+                text += value
+                if streaming:
+                    self._streamed = True
+                    yield {"type": "text", "text": value}
+                elif len(text) >= PREAMBLE_CHARS:
+                    # Long enough to be the answer rather than "Let me check...": stream it.
+                    streaming = self._streamed = True
+                    yield {"type": "text", "text": text}
+            else:
+                calls = value
+        return text, calls, streaming

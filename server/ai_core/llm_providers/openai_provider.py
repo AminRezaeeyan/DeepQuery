@@ -1,7 +1,9 @@
 import base64
+
+import httpx
 from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, ToolCall, register_provider
-from openai import BadRequestError, OpenAI
-from ai_core.exceptions import ContextLimitExceededError
+from openai import APIConnectionError, BadRequestError, OpenAI
+from ai_core.exceptions import ContextLimitExceededError, ProviderStalled
 
 @register_provider("openai")
 class OpenAIProvider(LLMProviderBase):
@@ -64,6 +66,9 @@ class OpenAIProvider(LLMProviderBase):
             if calls:
                 yield "tool_calls", [ToolCall.from_raw(c["id"], c["name"], c["arguments"]) for _, c in sorted(calls.items())]
 
+        # A stream that stops sending (or drops) mid-answer surfaces as a raw httpx error.
+        except (APIConnectionError, httpx.TimeoutException, httpx.TransportError) as e:
+            raise ProviderStalled(str(e)) from e
         except BadRequestError as e:
             msg = str(e).lower()
             if "context" in msg or "maximum context length" in msg:

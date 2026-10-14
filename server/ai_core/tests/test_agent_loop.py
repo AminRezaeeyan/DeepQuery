@@ -189,3 +189,43 @@ def test_a_short_answer_is_sent_when_the_turn_ends(context):
     agent = ResearchAgent(ScriptedModel([("text", "Yes."), ("text", " 3.")]), context, tool_definitions(web=False), max_steps=8, token_budget=100_000)
 
     assert run(agent, [{"role": "user", "content": "q"}]) == [{"type": "text", "text": "Yes. 3."}]
+
+
+class StallingModel(ScriptedModel):
+    """Stalls in the middle of its first answer, then answers in full."""
+
+    def stream_turn(self, messages, tools, tool_choice="auto"):
+        from ai_core.exceptions import ProviderStalled
+        self.calls.append({"tool_choice": tool_choice})
+        if len(self.calls) == 1:
+            yield "text", "ReFinED takes 15 s on "
+            raise ProviderStalled("The read operation timed out")
+        yield "text", "ReFinED takes 15 s [1]."
+
+
+@pytest.mark.django_db
+def test_a_stalled_answer_is_retried_and_the_partial_text_dropped(context):
+    agent = ResearchAgent(StallingModel(), context, tool_definitions(web=False), max_steps=0, token_budget=100_000)
+
+    events = run(agent, [{"role": "user", "content": "q"}])
+
+    assert events == [{"type": "text", "text": "ReFinED takes 15 s on "}, {"type": "reset"},
+                      {"type": "text", "text": "ReFinED takes 15 s [1]."}]
+    assert agent.answer == "ReFinED takes 15 s [1]."
+
+
+def test_openai_reports_a_stream_that_stops_mid_answer_as_stalled():
+    import httpx
+    from types import SimpleNamespace
+    from ai_core.exceptions import ProviderStalled
+    from ai_core.llm_providers.openai_provider import OpenAIProvider
+
+    def chunks():
+        yield SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content="Partial", tool_calls=None))])
+        raise httpx.ReadTimeout("The read operation timed out")
+
+    with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        client_cls.return_value.chat.completions.create.return_value = chunks()
+        config = SimpleNamespace(api_key="k", model_name="m", base_url=None, max_context_tokens=1000)
+        with pytest.raises(ProviderStalled):
+            list(OpenAIProvider(config).stream_turn([{"role": "user", "content": "q"}], []))
