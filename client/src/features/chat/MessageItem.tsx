@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, CircleAlert, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
 import { Markdown } from "../../components/Markdown";
+import { ResearchSteps } from "./ResearchSteps";
 import { api } from "../../lib/api";
 import { citedReferences, groupSources, hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
 import type { UIMessage } from "./useChatSession";
@@ -105,7 +106,8 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
         <span className={`msg-pip ${message.streaming ? "is-live" : ""}`} />
       </div>
       <div className="msg-main">
-        {waiting ? (
+        <ResearchSteps steps={message.trace ?? []} live={Boolean(message.streaming)} />
+        {waiting && message.trace?.length ? null : waiting ? (
           <div className="thinking">
             <span className="thinking-bar" />
             <span>{status}</span>
