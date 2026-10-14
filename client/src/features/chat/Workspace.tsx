@@ -4,7 +4,7 @@ import { ArrowDown, FileUp } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { displayTitle } from "../../lib/format";
-import { useMediaQuery, useStoredState } from "../../lib/hooks";
+import { useMediaQuery, useStoredState, useWhenVisible } from "../../lib/hooks";
 import type { Chat, Model, ResearchOptions, Subscription } from "../../lib/types";
 import { useToast } from "../../components/Toast";
 import { ChatHeader } from "./ChatHeader";
@@ -273,6 +273,10 @@ export function Workspace() {
 
   useEffect(() => setPinned(true), [chatId]);
 
+  // Load earlier messages as the reader nears the top of the thread.
+  const olderMarker = useRef<HTMLDivElement>(null);
+  useWhenVisible(olderMarker, session.hasOlder && !session.loadingOlder && !session.loading, session.loadOlder, "300px 0px 0px 0px");
+
   const onScroll = () => {
     const el = scroller.current;
     if (!el) return;
@@ -338,9 +342,12 @@ export function Workspace() {
           ) : (
             <div className="thread-inner">
               {session.hasOlder && (
-                <button className="load-older" onClick={session.loadOlder} disabled={session.loadingOlder}>
-                  {session.loadingOlder ? "Loading…" : "Show earlier messages"}
-                </button>
+                <div ref={olderMarker} className="load-older-marker">
+                  {/* Loads on scroll; the button stays for keyboard users. */}
+                  <button className="load-older" onClick={session.loadOlder} disabled={session.loadingOlder}>
+                    {session.loadingOlder ? "Loading earlier messages…" : "Show earlier messages"}
+                  </button>
+                </div>
               )}
               {messages.map((m, i) => (
                 <MessageItem

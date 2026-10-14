@@ -50,3 +50,26 @@ export function useStoredState<T>(key: string, initial: T) {
   }, [key, value]);
   return [value, setValue] as const;
 }
+
+/**
+ * Calls `onVisible` when `ref` scrolls into view (within `rootMargin`), while
+ * `enabled`. Re-arms whenever `enabled` turns back on, so a marker that's
+ * still visible after a page loads triggers the next page too.
+ */
+export function useWhenVisible(
+  ref: RefObject<HTMLElement | null>,
+  enabled: boolean,
+  onVisible: () => void,
+  rootMargin = "0px",
+) {
+  const callback = useRef(onVisible);
+  callback.current = onVisible;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const io = new IntersectionObserver(([entry]) => entry.isIntersecting && callback.current(), { rootMargin });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref, enabled, rootMargin]);
+}

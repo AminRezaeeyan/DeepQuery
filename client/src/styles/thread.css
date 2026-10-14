@@ -694,3 +694,8 @@ button.cite:focus-visible::after {
   color: var(--text);
   background: var(--surface);
 }
+
+.load-older-marker {
+  display: flex;
+  justify-content: center;
+}

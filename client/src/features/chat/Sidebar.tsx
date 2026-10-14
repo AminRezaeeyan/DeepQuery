@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { EyeOff, Gauge, LogOut, MoreHorizontal, PanelLeftClose, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { Logo } from "../../components/Logo";
 import { ThemeSwitch } from "../../components/ThemeSwitch";
 import { useAuth } from "../../lib/auth";
 import { displayTitle, groupChats } from "../../lib/format";
-import { useDismiss } from "../../lib/hooks";
+import { useDismiss, useWhenVisible } from "../../lib/hooks";
 import type { Chat, Subscription } from "../../lib/types";
 
 type Props = {
@@ -109,13 +109,7 @@ export function Sidebar(p: Props) {
   const sentinel = useRef<HTMLDivElement>(null);
   const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
 
-  useEffect(() => {
-    const el = sentinel.current;
-    if (!el || !p.hasMore) return;
-    const io = new IntersectionObserver(([e]) => e.isIntersecting && p.onLoadMore());
-    io.observe(el);
-    return () => io.disconnect();
-  }, [p.hasMore, p.onLoadMore]);
+  useWhenVisible(sentinel, p.hasMore, p.onLoadMore);
 
   const groups = p.query ? [{ label: p.searching ? "Searching…" : "Results", items: p.chats }] : groupChats(p.chats);
   const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || profile?.email || "Your account";
