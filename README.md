@@ -20,7 +20,7 @@ It's also a portfolio project, so the README describes what works today, not wha
 
 ### 🧠 Research & RAG
 *   **Document Q&A:** Upload PDF, TXT, Markdown, CSV, XLSX, JSON and code files to a chat. They're chunked, embedded and searched for every question in that chat.
-*   **Web Search:** Optionally searches the web (via Serper), fetches the top pages and adds them to the chat's sources. URLs pasted into a question are fetched too, public addresses only.
+*   **Web Search:** Optionally searches the web (DuckDuckGo via `ddgs`, no API key), fetches the top pages and adds them to the chat's sources. URLs pasted into a question are fetched too, public addresses only.
 *   **Citations:** The model is instructed to cite sources as `[1]`, `[2]`, and every answer ends with the list of sources that were retrieved for it. Whether each claim carries a citation depends on the model following that instruction.
 *   **Conflicting Sources:** The model is instructed to point out when sources disagree ("Source [1] says X, but Source [2] says Y"). There's no separate conflict-detection step.
 *   **Images:** Attach one image to a message when the selected model supports vision.
@@ -95,13 +95,11 @@ git clone https://github.com/aminrezaeeyan/DeepQuery.git
 cd DeepQuery/server
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env                 # then edit: database, SERPER_API_KEY, ...
+cp .env.example .env                 # then edit the database settings
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py runserver           # API on http://localhost:8000
 ```
-
-> **Known issue:** chat currently fails to start an answer when `SERPER_API_KEY` is empty, even with web search off. Set it to any value if you don't need web search.
 
 In a second terminal, from `server/`:
 

@@ -6,6 +6,7 @@ from urllib.parse import urljoin, urlparse
 
 import requests
 from bs4 import BeautifulSoup
+from ddgs import DDGS
 
 from django.conf import settings
 
@@ -131,45 +132,35 @@ class WebPageFetcher:
         res.close()
         return b"".join(chunks).decode(res.encoding or "utf-8", errors="replace")
 
-class SerperProvider:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.url = "https://google.serper.dev/search"
+class DuckDuckGoProvider:
+    """
+    Web search through the ddgs library: free and keyless. It tries the backends
+    in WEB_SEARCH_BACKENDS in order, so search still works where one is blocked.
+    """
 
-    def search(self, query: str):
-        payload = {"q": f"{query}"} 
-        headers = {
-            "X-API-KEY": self.api_key,
-            "Content-Type": "application/json"
-        }
-        response = requests.post(self.url, json=payload, headers=headers, timeout=10)
-        response.raise_for_status()
+    def __init__(self, backends: str, timeout: int):
+        self.backends = backends
+        self.timeout = timeout
 
-        data = response.json()
-        results = []
+    def search(self, query: str, max_results: int = 5):
+        results = DDGS(timeout=self.timeout).text(query, max_results=max_results, backend=self.backends)
+        return [
+            {"title": item.get("title"), "url": item.get("href"), "snippet": item.get("body")}
+            for item in results
+            if item.get("href")
+        ]
 
-        for item in data.get("organic", [])[:5]:
-            results.append({
-                "title": item.get("title"),
-                "url": item.get("link"),
-                "snippet": item.get("snippet"),
-            })
-        return results
 
 class WebSearchService:
     def __init__(self):
-        api_key = getattr(settings, "SERPER_API_KEY", None)
-        if not api_key:
-            raise ValueError("SERPER_API_KEY is not set.")
-        self.provider = SerperProvider(api_key)
+        self.provider = DuckDuckGoProvider(settings.WEB_SEARCH_BACKENDS, settings.WEB_SEARCH_TIMEOUT)
 
-    def search(self, query: str):
+    def search(self, query: str, max_results: int = 5):
         try:
-            return self.provider.search(query)
+            return self.provider.search(query, max_results=max_results)
         except Exception as e:
             logger.warning("Web search failed: %s", e)
             return []
-
 
 
 class WebKnowledgeService:

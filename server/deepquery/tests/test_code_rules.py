@@ -6,7 +6,7 @@ from unittest.mock import patch
 import requests
 
 SERVER = Path(__file__).resolve().parents[2]
-HTTP_CLIENTS = {"OpenAI", "Anthropic", "Client"}  # Client = google.genai.Client
+HTTP_CLIENTS = {"OpenAI", "Anthropic", "Client", "DDGS"}  # Client = google.genai.Client
 
 
 def app_sources():
