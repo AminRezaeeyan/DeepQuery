@@ -18,6 +18,7 @@ from .sandbox import run_python, sandbox_mode
 
 TOOL_REGISTRY = {}
 MAX_OUTPUT_CHARS = 12000
+LONG_FILE_PREVIEW_CHARS = 3000
 HTTP_TIMEOUT = 10
 WIKIPEDIA_HEADERS = {"User-Agent": "DeepQuery/0.1 (research assistant)"}
 
@@ -160,10 +161,20 @@ class ReadDocument:
             labels = ", ".join(s["label"] for s in segments if s["label"])
             if len(doc.extracted_text) <= MAX_OUTPUT_CHARS:
                 selected = segments
-            else:
+            elif labels:
                 return ToolOutput(
                     f"{doc.original_filename} is long; read it in parts. Parts: {labels}.",
                     f"Listed the parts of {doc.original_filename}",
+                )
+            else:
+                # No pages or sheets to split by (a long CSV or text file): show its start.
+                n = context.sources.add(("doc", doc.id, ""), filename=doc.original_filename)
+                head = doc.extracted_text[:LONG_FILE_PREVIEW_CHARS].rsplit("\n", 1)[0]
+                return ToolOutput(
+                    f"[{n}] ({context.sources.label(n)})\n{head}\n[... the first {head.count(chr(10)) + 1} lines of "
+                    f"{len(doc.extracted_text.splitlines())}. Use run_python to work with the whole file "
+                    f"(it's in the working directory as {doc.original_filename}).]",
+                    f"Read the start of {doc.original_filename}",
                 )
 
         parts, shown, size = [], [], 0
