@@ -127,7 +127,9 @@ SPECTACULAR_SETTINGS = {
 
 # --- EXTERNAL SERVICES ---
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
-SERPER_API_KEY = config("SERPER_API_KEY", default="")
+# Web search via ddgs (no key). Backends are tried in order; drop ones blocked on your network.
+WEB_SEARCH_BACKENDS = config("WEB_SEARCH_BACKENDS", default="duckduckgo,bing,yandex")
+WEB_SEARCH_TIMEOUT = config("WEB_SEARCH_TIMEOUT", default=10, cast=int)
 
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = CELERY_BROKER_URL
