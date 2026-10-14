@@ -2,7 +2,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from .models import Document
-from .services.document_processing_service import DocumentProcessingService
+from .services.document_processing_service import DocumentProcessingService, join_segments
 from ai_core.services.embedding_service import EmbeddingService
 
 
@@ -16,7 +16,8 @@ def extract_and_index_document(document_id: int):
     doc.save(update_fields=["status"])
 
     try:
-        text = DocumentProcessingService.extract_text(doc.file.path)
+        segments = DocumentProcessingService.extract_segments(doc.file.path)
+        text = join_segments(segments)
 
         if not text.strip():
             doc.status = Document.StatusChoices.FAILED
@@ -24,14 +25,15 @@ def extract_and_index_document(document_id: int):
             return f"No text extracted for document {document_id}"
 
         doc.extracted_text = text
+        doc.extracted_segments = segments
         doc.updated_at = timezone.now()
-        doc.save(update_fields=["extracted_text", "updated_at"])
+        doc.save(update_fields=["extracted_text", "extracted_segments", "updated_at"])
 
         service = EmbeddingService()
 
         tag = f"chat:{doc.chat.id}"
 
-        service.embed_instance(doc, text, tag=tag)
+        service.embed_instance(doc, text, tag=tag, segments=segments)
 
         doc.status = Document.StatusChoices.DONE
         doc.save(update_fields=["status"])

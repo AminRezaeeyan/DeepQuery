@@ -55,7 +55,7 @@ def test_run_eval_saves_every_answer_and_grade(setup):
          patch("evaluation.runner.provider_instance", return_value=FakeJudge()):
         service_cls.return_value.prepare.return_value = {
             "messages": [{"role": "system", "content": "RULES"}, {"role": "user", "content": "<sources>\nnotes text\n</sources>\n\nHow fast?"}],
-            "citation_map": {1: {"cite_id": 1, "url": None, "filename": "notes.md"}},
+            "citation_map": {(1, ""): {"cite_id": 1, "url": None, "filename": "notes.md", "location": "", "label": "notes.md"}},
         }
         service_cls.return_value.stream_prepared.side_effect = fake_stream
 

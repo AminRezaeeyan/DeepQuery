@@ -57,8 +57,12 @@ function Sources({ refs, flashId }: { refs: Reference[]; flashId: number | null 
             <>
               <span className="src-num">{r.id}</span>
               {r.url ? <Globe size={14} className="src-icon" /> : <FileText size={14} className="src-icon" />}
-              <span className="src-name">{r.url ? hostOf(r.url) : r.label}</span>
-              {r.url && <span className="src-path">{r.url.replace(/^https?:\/\/(www\.)?[^/]+/, "") || "/"}</span>}
+              <span className="src-name">{r.url ? hostOf(r.url) : r.name}</span>
+              {r.url ? (
+                <span className="src-path">{r.url.replace(/^https?:\/\/(www\.)?[^/]+/, "") || "/"}</span>
+              ) : (
+                r.location && <span className="src-path">{r.location}</span>
+              )}
             </>
           );
           return (

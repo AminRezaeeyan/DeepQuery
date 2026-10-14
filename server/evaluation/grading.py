@@ -46,9 +46,14 @@ def split_answer(text: str) -> tuple[str, dict[int, str]]:
     return text[:at].rstrip(), references
 
 
+def source_of(label: str) -> str:
+    """The source behind a reference label: "refined.pdf, p. 6" -> "refined.pdf"."""
+    return re.sub(r", (p\. \d+|sheet: .+)$", "", label)
+
+
 def check_citations(body: str, references: dict[int, str], expected_files: list[str]) -> dict:
     cited = sorted({int(n) for n in re.findall(r"\[(\d{1,3})\]", body)})
-    cited_files = sorted({references[n] for n in cited if n in references})
+    cited_files = sorted({source_of(references[n]) for n in cited if n in references})
     return {
         "cited_ids": cited,
         "invalid_ids": [n for n in cited if n not in references],

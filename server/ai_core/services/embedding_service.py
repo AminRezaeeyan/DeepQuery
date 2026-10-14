@@ -137,10 +137,13 @@ class EmbeddingService:
 
 
     @transaction.atomic
-    def embed_instance(self, instance, text: str, tag: Optional[str] = None) -> EmbeddedObject:
+    def embed_instance(self, instance, text: str, tag: Optional[str] = None, segments: Optional[list] = None) -> EmbeddedObject:
         """
         Main entry point:
             embed_instance(article, article.body)
+
+        With `segments` ([{"label": "p. 3", "text": ...}]), each part is chunked on
+        its own and its chunks remember the label, so citations can name the page.
         """
 
         ct = ContentType.objects.get_for_model(instance)
@@ -162,18 +165,24 @@ class EmbeddingService:
             tag=tag,
         )
 
-        chunks = self.chunker.chunk_text(text)
+        parts = segments or [{"label": None, "text": text}]
+        chunks = [
+            (chunk, part.get("label") or "")
+            for part in parts
+            for chunk in self.chunker.chunk_text(part["text"])
+        ]
 
-        embeddings = self.embed_documents(chunks)
+        embeddings = self.embed_documents([chunk for chunk, _ in chunks])
 
         chunk_records = []
-        for idx, (chunk_text, emb) in enumerate(zip(chunks, embeddings)):
+        for idx, ((chunk_text, location), emb) in enumerate(zip(chunks, embeddings)):
             chunk_records.append(
                 EmbeddingChunk(
                     embedded_object=eo,
                     text=chunk_text,
                     embedding=emb,
                     chunk_index=idx,
+                    location=location,
                     token_count=self.provider.count_tokens(chunk_text),
                 )
             )
@@ -199,7 +208,7 @@ class EmbeddingService:
         """
         Vector search using pgvector.
         Returns:
-            List of tuples: (instance, score, text)
+            List of tuples: (instance, score, text, location)
         """
         query_vec = self.embed_query(query)
         params = [query_vec]
@@ -210,7 +219,8 @@ class EmbeddingService:
                 eo.content_type_id,
                 eo.object_id,
                 1 - (c.embedding <=> %s::vector) AS score,
-                c.text
+                c.text,
+                c.location
             FROM ai_core_embeddingchunk c
         """
         
@@ -246,7 +256,7 @@ class EmbeddingService:
 
         # Load the matched objects with one query per content type, not two per row.
         ids_by_type = {}
-        for ct_id, object_id, _, _ in rows:
+        for ct_id, object_id, _, _, _ in rows:
             ids_by_type.setdefault(ct_id, set()).add(object_id)
 
         objects = {}
@@ -256,10 +266,10 @@ class EmbeddingService:
                 objects[(ct_id, str(obj.pk))] = obj
 
         results = []
-        for ct_id, object_id, score, text in rows:
+        for ct_id, object_id, score, text, location in rows:
             obj = objects.get((ct_id, object_id))
             if obj is not None:  # the source was deleted since it was embedded
-                results.append((obj, score, text))
+                results.append((obj, score, text, location))
 
 
         return results
