@@ -32,7 +32,6 @@ class PaymentView(views.APIView):
         payment_info = SubscriptionService.initiate_zarinpal_payment(
             user=request.user,
             plan=plan,
-            request=request
         )
 
         return Response(payment_info)

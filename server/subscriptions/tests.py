@@ -38,7 +38,7 @@ class TestPaymentVerification:
 
         result = SubscriptionService.verify_zarinpal_payment(authority="A1", status="OK")
 
-        assert result["ref_id"] == 42
+        assert result["ref_id"] == "42"
         assert UserSubscription.objects.filter(user=user).count() == 1
         sub = UserSubscription.objects.get(user=user)
         assert sub.plan == pro_plan
@@ -71,3 +71,31 @@ class TestExpiredPlan:
         user.refresh_from_db()
 
         assert SubscriptionService.get_user_plan(user).name == Plan.PlanType.FREE
+
+
+@pytest.mark.django_db
+class TestPaymentReturnsToTheClient:
+
+    def test_zarinpal_sends_the_user_to_the_client_result_page(self, user, pro_plan, zarinpal, settings):
+        settings.CLIENT_URL = "https://app.example.com/"
+        zarinpal.payments.create.return_value = {"data": {"authority": "A3"}}
+        zarinpal.payments.generate_payment_url.return_value = "https://pay.example/A3"
+        client = APIClient()
+        client.force_authenticate(user)
+
+        client.post("/api/subscriptions/payment/initiate/", {"plan_id": pro_plan.id}, format="json")
+
+        assert zarinpal.payments.create.call_args.args[0]["callback_url"] == "https://app.example.com/payment/result"
+
+    def test_verifying_twice_reports_the_first_success(self, user, pro_plan, zarinpal):
+        Payment.objects.create(user=user, plan=pro_plan, amount=pro_plan.price, authority="A4", status=Payment.Status.PENDING)
+        zarinpal.verifications.verify.return_value = {"status": 100, "data": {"ref_id": 77, "fee": 0}}
+        client = APIClient()
+        url = "/api/subscriptions/payment/verify/?Authority=A4&Status=OK"
+
+        first = client.get(url)
+        second = client.get(url)  # the user reloads the result page
+
+        assert first.status_code == second.status_code == 200
+        assert second.json() == {"message": "Payment successful. Subscription updated.", "ref_id": "77", "plan": "PRO"}
+        assert zarinpal.verifications.verify.call_count == 1
