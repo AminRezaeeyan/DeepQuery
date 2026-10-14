@@ -12,16 +12,17 @@
 
 ## 📖 Overview
 
-**DeepQuery** is an AI research assistant. You ask a question; it answers from the documents you upload, from web pages it searches for, and from what it remembers about you, and it cites the sources it used. It uses Retrieval-Augmented Generation (RAG) over PostgreSQL + pgvector and streams answers from the LLM provider you configure.
+**DeepQuery** is an AI research assistant. You ask a question; a research agent works it out in steps, searching and reading the documents you upload, the web and Wikipedia with its tools, and answers with a citation for each claim, down to the page. It uses Retrieval-Augmented Generation (RAG) over PostgreSQL + pgvector and streams answers, and the steps that led to them, from the LLM provider you configure.
 
 It's also a portfolio project, so the README describes what works today, not what's planned.
 
 ## ✨ Key Features
 
 ### 🧠 Research & RAG
-*   **Document Q&A:** Upload PDF, TXT, Markdown, CSV, XLSX, JSON and code files to a chat. They're chunked, embedded and searched for every question in that chat.
-*   **Web Search:** Optionally searches the web (DuckDuckGo via `ddgs`, no API key), fetches the top pages and adds them to the chat's sources. URLs pasted into a question are fetched too, public addresses only.
-*   **Citations:** The model is instructed to cite sources as `[1]`, `[2]`, and every answer ends with the list of sources that were retrieved for it. Whether each claim carries a citation depends on the model following that instruction.
+*   **Research agent:** A plain-Python loop with native tool calling (no agent framework): each turn the model either answers or calls a tool, reads the result and continues, up to a step limit. The steps show live in the chat and stay with the answer. Tools: `search_documents`, `read_document` (an exact page or sheet), `web_search`, `fetch_page` (with search inside the page) and `wikipedia`. Providers without tool calling answer in a single retrieval pass instead.
+*   **Document Q&A:** Upload PDF, TXT, Markdown, CSV, XLSX, JSON and code files to a chat. They're split into passages per page or sheet, embedded, and searched by the agent.
+*   **Web Search:** When enabled, the agent can search the web (`ddgs`, no API key; DuckDuckGo first, then Yahoo), read pages and look things up on Wikipedia. Only public addresses are fetched.
+*   **Citations:** Every source a tool returns gets a number, and answers cite them as `[1]`, `[2]`, down to the page (`refined.pdf, p. 6`). The list under an answer shows only the sources it cites. Whether each claim carries a citation still depends on the model following the instruction.
 *   **Conflicting Sources:** The model is instructed to point out when sources disagree ("Source [1] says X, but Source [2] says Y"). There's no separate conflict-detection step.
 *   **Images:** Attach one image to a message when the selected model supports vision.
 *   **Memory:** Recent chat history is included in each prompt. Personal facts you mention (in English or Persian) are extracted in the background and recalled in later chats when they're relevant.
