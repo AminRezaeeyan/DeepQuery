@@ -158,7 +158,14 @@ RAG_CHUNK_OVERLAP_TOKENS = config("RAG_CHUNK_OVERLAP_TOKENS", default=60, cast=i
 
 # --- RESEARCH AGENT ---
 # Tool-calling turns before the agent must answer with what it has.
-AGENT_MAX_STEPS = config("AGENT_MAX_STEPS", default=8, cast=int)
+AGENT_MAX_STEPS = config("AGENT_MAX_STEPS", default=10, cast=int)
+
+# --- CODE EXECUTION (the agent's run_python tool) ---
+# "auto" uses bubblewrap when installed (isolated filesystem and network),
+# otherwise a plain subprocess with limits; "off" disables the tool.
+CODE_SANDBOX = config("CODE_SANDBOX", default="auto")
+CODE_TIMEOUT = config("CODE_TIMEOUT", default=20, cast=int)  # seconds
+CODE_MEMORY_MB = config("CODE_MEMORY_MB", default=1024, cast=int)
 
 # --- UPLOADS ---
 # Uploads are stored under server/ (chat_images/, user_documents/) and never

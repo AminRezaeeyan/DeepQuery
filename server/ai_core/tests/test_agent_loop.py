@@ -95,7 +95,7 @@ class TestResearchAgent:
 
 
 def test_web_tools_are_offered_only_with_web_search_on():
-    assert {t["name"] for t in tool_definitions(web=False)} == {"search_documents", "read_document"}
+    assert {t["name"] for t in tool_definitions(web=False)} == {"search_documents", "read_document", "run_python"}
     assert {"web_search", "fetch_page", "wikipedia"} <= {t["name"] for t in tool_definitions(web=True)}
 
 
