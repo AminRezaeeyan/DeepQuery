@@ -98,6 +98,17 @@ class TestReadDocument:
         assert run_tool("read_document", {"name": "notes.md"}, context).text == "[1] (notes.md)\nBudget: 400 USD"
         assert "read it in parts. Parts: p. 1, p. 2" in run_tool("read_document", {"name": "long.pdf"}, context).text
 
+    def test_a_long_file_without_pages_shows_its_start_and_points_to_run_python(self, context):
+        rows = "\n".join(f"m{i},NIL,NIL" for i in range(2000))
+        add_document(context, "nil_audit.csv", [{"label": None, "text": "mention,gold,cross_pred\n" + rows}])
+
+        output = run_tool("read_document", {"name": "nil_audit.csv"}, context)
+
+        assert output.text.startswith("[1] (nil_audit.csv)\nmention,gold,cross_pred\nm0,NIL,NIL")
+        assert "of 2001. Use run_python to work with the whole file" in output.text
+        assert "Parts:" not in output.text
+        assert output.summary == "Read the start of nil_audit.csv"
+
     def test_unknown_names_list_the_attached_documents(self, context):
         add_document(context, "refined.pdf", PAGES)
 
