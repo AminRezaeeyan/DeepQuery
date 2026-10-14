@@ -62,25 +62,30 @@ tool, read the result, and repeat until you can answer, then answer.
 """.strip()
 
 
-# Sent after the agent's first draft of an answer that used tools; the draft isn't shown.
-REVIEW_REQUEST = """(Automatic check before your answer is shown; this isn't from the user.)
-Check your draft against the tool results above:
-1. Is every number copied exactly from a tool result or printed by run_python? Redo with run_python
-   any arithmetic, count, ratio, average or ranking you worked out yourself.
-2. Is each number from the right row, column and table, for the method and dataset the question asks
-   about? Check the table caption, not only the row name.
-3. Does it answer every part of the question, and does it say what each result depends on (exclusions,
-   what a number measures)? If asked whether figures agree and they don't, say so plainly.
-   If code and a document describe the same rule, did you compare them exactly? If the question asks
-   what code prints, did you run it? If it asks whether code is correct, did you check each condition
-   against the comments describing its data?
-4. For anything you called missing or not reported: did you search with other words and read the pages
-   around what you found? If not, do that now. Never estimate a value the source may state exactly.
-5. Does each [n] point to the source that actually states the claim? A difference between two
-   percentages is in percentage points.
-6. Remove anything the sources don't support, including conflicts you inferred yourself.
-Call tools if anything needs checking or fixing. Then reply with the complete final answer for the
-user, written fresh and concise, without mentioning this check or the draft and without a
+# After a draft answer that used tools: the model lists the draft's problems (hidden, may use
+# tools), then writes the final answer from that list. Neither the draft nor the list is shown.
+CRITIQUE_REQUEST = """(Automatic check before your answer is shown; this isn't from the user.)
+Don't rewrite the answer yet. Review your draft against the tool results above and write a short
+list of its problems:
+1. Parts: list each part of the question and whether the draft answers it. If the question asks
+   whether something reproduces, agrees with or compares to something else, compute the same
+   measures on both sides (e.g. both NIL accuracy and overall accuracy) and compare with every
+   dataset or setting the source reports, not one.
+2. Claims: for each claim and each explanation ("they differ because ..."), quote the source
+   sentence that states it, or mark it UNSUPPORTED. Look for the differences the sources do state,
+   such as how each paper trained or set up the model.
+3. Numbers: is each from the right table, row, column and footnote marker (†, *), and copied
+   exactly or computed with run_python? When checking whether figures agree, convert both ways
+   (e.g. hours to days and days to hours). Percentage differences are percentage points.
+4. Code: if asked whether output is correct, correct means matching what the code is meant to
+   compute (its name, docstring, comments, the standard definition), never just matching its own
+   implementation. Write an independent implementation of that definition in run_python and compare.
+5. Missing: for anything the draft says isn't reported, run find_text with its key words.
+Use tools to check or fix anything. End with the list of problems and their fixes."""
+
+FINAL_REQUEST = """(Automatic step; this isn't from the user.) Now write the final answer for the user:
+fix every problem in your review, leave out everything marked UNSUPPORTED, and answer each part of
+the question. Be concise. Don't mention the review, the draft or this request, and don't add a
 references list."""
 
 
