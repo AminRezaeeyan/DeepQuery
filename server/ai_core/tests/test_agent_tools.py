@@ -67,12 +67,22 @@ class TestReadDocument:
         assert output.text == "[1] (refined.pdf, p. 6)\nPage 6 text. ReFinED 15 89.4"
         assert output.summary == "Read refined.pdf, p. 6"
 
-    def test_page_ranges_are_capped_at_five_pages(self, context):
+    def test_a_page_range_comes_whole_when_it_fits(self, context):
         add_document(context, "refined.pdf", PAGES)
 
         output = run_tool("read_document", {"name": "REFINED.PDF", "part": "p. 2-12"}, context)
 
-        assert [line for line in output.text.split("\n") if line.startswith("[")] == [f"[{i}] (refined.pdf, p. {i + 1})" for i in range(1, 6)]
+        assert [line for line in output.text.split("\n") if line.startswith("[")] == [f"[{i}] (refined.pdf, p. {i + 1})" for i in range(1, 12)]
+
+    def test_a_long_range_stops_at_a_page_boundary_and_says_where_to_continue(self, context):
+        add_document(context, "paper.pdf", [{"label": f"p. {n}", "text": f"Page {n} " + "x" * 5000} for n in range(1, 13)])
+
+        output = run_tool("read_document", {"name": "paper.pdf", "part": "1-12"}, context)
+
+        assert "[cut" not in output.text  # nothing is cut mid-page
+        assert output.text.endswith("[Shown: p. 1, p. 2. Not shown yet: p. 3-12; read them with part='3-12'.]")
+        again = run_tool("read_document", {"name": "paper.pdf", "part": "11-12"}, context)
+        assert "Not shown yet" not in again.text and "Page 12" in again.text
 
     def test_reads_a_spreadsheet_sheet_by_name(self, context):
         add_document(context, "runs.xlsx", [{"label": "sheet: runs", "text": "R1 91.5"}, {"label": "sheet: gpu_prices", "text": "T4 0.53"}])

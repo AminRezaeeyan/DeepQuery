@@ -126,7 +126,7 @@ class SearchDocuments:
 class ReadDocument:
     name = "read_document"
     description = (
-        "Read an attached document exactly: a PDF page or page range (e.g. '6' or '5-7'), or a spreadsheet "
+        "Read an attached document exactly: a PDF page or page range (e.g. '6' or '5-7'; long ranges come in pieces and say where to continue), or a spreadsheet "
         "sheet by name. Use it to read tables and numbers precisely after search_documents finds where they are. "
         "Without 'part', returns short documents whole and lists the pages or sheets of long ones."
     )
@@ -166,24 +166,52 @@ class ReadDocument:
                     f"Listed the parts of {doc.original_filename}",
                 )
 
-        parts = []
+        parts, shown, size = [], [], 0
         for seg in selected:
+            text = seg["text"].strip()
+            if shown and size + len(text) > MAX_OUTPUT_CHARS - 300:
+                break  # whole pages only, and say where to go on, instead of cutting mid-page
             n = context.sources.add(("doc", doc.id, seg["label"] or ""), filename=doc.original_filename, location=seg["label"] or "")
-            parts.append(f"[{n}] ({context.sources.label(n)})\n{seg['text'].strip()}")
+            parts.append(f"[{n}] ({context.sources.label(n)})\n{text}")
+            shown.append(seg)
+            size += len(text)
+        rest = self._rest(segments, part, shown)
+        if rest:
+            parts.append(f"[Shown: {', '.join(s['label'] for s in shown)}. Not shown yet: {rest}; read them with part='{rest.removeprefix('p. ')}'.]")
+        selected = shown
         where = ", ".join(s["label"] for s in selected if s["label"])
         return ToolOutput("\n\n".join(parts), f"Read {doc.original_filename}" + (f", {where}" if where and len(selected) <= 3 else ""))
 
     @staticmethod
-    def _select(segments, part):
+    def _page_range(part):
+        part = str(part).strip().lower().removeprefix("p.").removeprefix("pages").removeprefix("page").strip()
+        pages = re.fullmatch(r"(\d+)\s*(?:-\s*(\d+))?", part)
+        return (int(pages.group(1)), int(pages.group(2) or pages.group(1))) if pages else None
+
+    @classmethod
+    def _select(cls, segments, part):
         if not part:
             return None
-        part = str(part).strip().lower().removeprefix("p.").removeprefix("page").strip()
-        pages = re.fullmatch(r"(\d+)\s*(?:-\s*(\d+))?", part)
+        pages = cls._page_range(part)
         if pages:
-            first, last = int(pages.group(1)), int(pages.group(2) or pages.group(1))
-            wanted = {f"p. {n}" for n in range(first, min(last, first + 4) + 1)}  # at most 5 pages at once
+            first, last = pages
+            wanted = {f"p. {n}" for n in range(first, last + 1)}
             return [s for s in segments if s["label"] in wanted] or None
+        part = str(part).strip().lower()
         return [s for s in segments if s["label"] and part in s["label"].lower()] or None
+
+    @classmethod
+    def _rest(cls, segments, part, shown):
+        """The requested pages that didn't fit, as "p. 4-12", or ""."""
+        pages = cls._page_range(part) if part else None
+        if not pages or not shown or not shown[-1]["label"].startswith("p. "):
+            return ""
+        last_shown = int(shown[-1]["label"].removeprefix("p. "))
+        last_page = max([int(s["label"][3:]) for s in segments if (s["label"] or "").startswith("p. ")], default=0)
+        end = min(pages[1], last_page)
+        if last_shown >= end:
+            return ""
+        return f"p. {last_shown + 1}" + (f"-{end}" if end > last_shown + 1 else "")
 
 
 @register_tool
