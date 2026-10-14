@@ -1,6 +1,6 @@
 import type { Chat } from "./types";
 
-export type Reference = { id: number; label: string; url: string | null };
+export type Reference = { id: number; label: string; url: string | null; name: string; location: string | null };
 
 const REF_MARKER = "**References:**";
 
@@ -14,7 +14,16 @@ export function splitAnswer(text: string): { body: string; references: Reference
     const m = line.trim().match(/^\[(\d+)\]\s+(.+)$/);
     if (!m) continue;
     const label = m[2].trim();
-    references.push({ id: Number(m[1]), label, url: /^https?:\/\//i.test(label) ? label : null });
+    // "refined.pdf, p. 6" -> name "refined.pdf", location "p. 6"
+    const place = label.match(/^(.*), (p\. \d+|sheet: .+)$/);
+    const name = place ? place[1] : label;
+    references.push({
+      id: Number(m[1]),
+      label,
+      name,
+      location: place ? place[2] : null,
+      url: /^https?:\/\//i.test(name) ? name : null,
+    });
   }
   return { body: text.slice(0, at).trimEnd(), references };
 }
