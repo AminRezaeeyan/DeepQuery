@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, CircleAlert, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
 import { Markdown } from "../../components/Markdown";
 import { api } from "../../lib/api";
-import { citedReferences, hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
+import { citedReferences, groupSources, hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
 import type { UIMessage } from "./useChatSession";
 
 /** Chat images need the auth header, so they're fetched rather than linked. */
@@ -47,28 +47,31 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** One card per source; the page of each citation shows on its chip in the text. */
 function Sources({ refs, flashId }: { refs: Reference[]; flashId: number | null }) {
   return (
     <section className="sources" aria-label="Sources">
       <h4 className="mono-label">Sources</h4>
       <ol>
-        {refs.map((r) => {
+        {groupSources(refs).map((g) => {
           const inner = (
             <>
-              <span className="src-num">{r.id}</span>
-              {r.url ? <Globe size={14} className="src-icon" /> : <FileText size={14} className="src-icon" />}
-              <span className="src-name">{r.url ? hostOf(r.url) : r.name}</span>
-              {r.url ? (
-                <span className="src-path">{r.url.replace(/^https?:\/\/(www\.)?[^/]+/, "") || "/"}</span>
-              ) : (
-                r.location && <span className="src-path">{r.location}</span>
-              )}
+              <span className="src-nums">
+                {g.ids.map((id) => (
+                  <span key={id} className="src-num">
+                    {id}
+                  </span>
+                ))}
+              </span>
+              {g.url ? <Globe size={14} className="src-icon" /> : <FileText size={14} className="src-icon" />}
+              <span className="src-name">{g.url ? hostOf(g.url) : g.name}</span>
+              {g.url && <span className="src-path">{g.url.replace(/^https?:\/\/(www\.)?[^/]+/, "") || "/"}</span>}
             </>
           );
           return (
-            <li key={r.id} className={flashId === r.id ? "is-flash" : ""} data-ref={r.id}>
-              {r.url ? (
-                <a href={r.url} target="_blank" rel="noreferrer noopener">
+            <li key={g.url ?? g.name} className={flashId !== null && g.ids.includes(flashId) ? "is-flash" : ""} data-refs={g.ids.join(" ")}>
+              {g.url ? (
+                <a href={g.url} target="_blank" rel="noreferrer noopener">
                   {inner}
                 </a>
               ) : (
@@ -89,7 +92,7 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
   const ref = useRef<HTMLDivElement>(null);
 
   const showSource = (id: number) => {
-    ref.current?.querySelector(`[data-ref="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    ref.current?.querySelector(`[data-refs~="${id}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     setFlash(id);
     window.setTimeout(() => setFlash(null), 1600);
   };

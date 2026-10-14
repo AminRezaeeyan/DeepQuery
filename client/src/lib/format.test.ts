@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { citedReferences, splitAnswer } from "./format";
+import { citedReferences, groupSources, splitAnswer } from "./format";
 
 describe("splitAnswer", () => {
   it("reads page and sheet locations from references", () => {
@@ -26,6 +26,20 @@ describe("citedReferences", () => {
     expect(citedReferences(body, references).map((r) => [r.id, r.location])).toEqual([
       [3, "p. 3"],
       [7, "p. 7"],
+    ]);
+  });
+});
+
+describe("groupSources", () => {
+  it("shows each file once with all its citation numbers", () => {
+    const { references } = splitAnswer(
+      "x\n\n**References:**\n[1] refined.pdf, p. 6\n[2] blink.pdf, p. 7\n[3] refined.pdf, p. 7\n[4] https://en.wikipedia.org/wiki/Fandom\n",
+    );
+
+    expect(groupSources(references)).toEqual([
+      { name: "refined.pdf", url: null, ids: [1, 3] },
+      { name: "blink.pdf", url: null, ids: [2] },
+      { name: "https://en.wikipedia.org/wiki/Fandom", url: "https://en.wikipedia.org/wiki/Fandom", ids: [4] },
     ]);
   });
 });

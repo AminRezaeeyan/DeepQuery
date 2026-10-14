@@ -34,6 +34,20 @@ export function citedReferences(body: string, references: Reference[]): Referenc
   return references.filter((r) => cited.has(r.id));
 }
 
+export type SourceGroup = { name: string; url: string | null; ids: number[] };
+
+/** One entry per source file or web page, with every citation number that points into it. */
+export function groupSources(references: Reference[]): SourceGroup[] {
+  const groups = new Map<string, SourceGroup>();
+  for (const r of references) {
+    const key = r.url ?? r.name;
+    const group = groups.get(key) ?? { name: r.name, url: r.url, ids: [] };
+    group.ids.push(r.id);
+    groups.set(key, group);
+  }
+  return [...groups.values()];
+}
+
 /** Turns [1] and [1][2] citations into links the markdown renderer shows as chips. */
 export function linkCitations(body: string): string {
   // Leave code spans and fences alone.
