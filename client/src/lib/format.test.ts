@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitAnswer } from "./format";
+import { citedReferences, splitAnswer } from "./format";
 
 describe("splitAnswer", () => {
   it("reads page and sheet locations from references", () => {
@@ -13,6 +13,19 @@ describe("splitAnswer", () => {
       ["runs.xlsx", "sheet: gpu_prices", null],
       ["https://en.wikipedia.org/wiki/Fandom", null, "https://en.wikipedia.org/wiki/Fandom"],
       ["notes.md", null, null],
+    ]);
+  });
+});
+
+describe("citedReferences", () => {
+  it("keeps only the references the answer cites, with their numbers", () => {
+    const { body, references } = splitAnswer(
+      "Fast [3] and accurate [7][3].\n\n**References:**\n" + Array.from({ length: 12 }, (_, i) => `[${i + 1}] refined.pdf, p. ${i + 1}`).join("\n"),
+    );
+
+    expect(citedReferences(body, references).map((r) => [r.id, r.location])).toEqual([
+      [3, "p. 3"],
+      [7, "p. 7"],
     ]);
   });
 });
