@@ -135,7 +135,8 @@ class WebPageFetcher:
 class DuckDuckGoProvider:
     """
     Web search through the ddgs library: free and keyless. It tries the backends
-    in WEB_SEARCH_BACKENDS in order, so search still works where one is blocked.
+    in WEB_SEARCH_BACKENDS in order until one returns results, so search still
+    works where one engine is blocked or rate-limited.
     """
 
     def __init__(self, backends: str, timeout: int):
@@ -143,12 +144,25 @@ class DuckDuckGoProvider:
         self.timeout = timeout
 
     def search(self, query: str, max_results: int = 5):
-        results = DDGS(timeout=self.timeout).text(query, max_results=max_results, backend=self.backends)
-        return [
-            {"title": item.get("title"), "url": item.get("href"), "snippet": item.get("body")}
-            for item in results
-            if item.get("href")
-        ]
+        # One backend at a time, in order: ddgs groups engines that share an index
+        # (DuckDuckGo and Yahoo both use Bing's) and won't fall through between them.
+        error = None
+        for backend in [b.strip() for b in self.backends.split(",") if b.strip()]:
+            try:
+                results = DDGS(timeout=self.timeout).text(query, max_results=max_results, backend=backend)
+            except Exception as e:  # blocked, rate-limited or no results: try the next backend
+                error = e
+                continue
+            hits = [
+                {"title": item.get("title"), "url": item.get("href"), "snippet": item.get("body")}
+                for item in results
+                if item.get("href")
+            ]
+            if hits:
+                return hits
+        if error:
+            raise error
+        return []
 
 
 class WebSearchService:
