@@ -10,7 +10,7 @@ from urllib.parse import quote
 import requests
 
 from ai_core.services.embedding_service import EmbeddingService
-from ai_core.services.web_search_service import UnsafeURL, WebPageFetcher, WebSearchService, check_public_url
+from ai_core.services.web_search_service import UnsafeURL, WebPageFetcher, WebSearchService, check_public_url, html_to_text
 from documents.models import Document
 
 from .citations import SourceRegistry
@@ -242,37 +242,86 @@ class FetchPage:
 @register_tool
 class Wikipedia:
     name = "wikipedia"
-    description = "Look up a topic on Wikipedia and return the most relevant parts of the best-matching article."
+    description = (
+        "Read a Wikipedia article, with its tables and lists. Returns the intro, the list of sections, "
+        "and the section matching your query (or the one you name in 'section'). Pass 'as_of' (a year "
+        "or YYYY-MM-DD) to read the article as it was then, e.g. when a question names a version."
+    )
     parameters = {
         "type": "object",
         "properties": {
-            "query": {"type": "string"},
+            "query": {"type": "string", "description": "The article or topic, e.g. 'Mercedes Sosa discography'."},
+            "section": {"type": "string", "description": "A section title to read, e.g. 'Studio albums'. Optional."},
+            "as_of": {"type": "string", "description": "Read the revision from this year or date (YYYY or YYYY-MM-DD). Optional."},
             "language": {"type": "string", "description": "Wikipedia language code, e.g. 'en' or 'fa'.", "default": "en"},
         },
         "required": ["query"],
     }
 
     @staticmethod
-    def describe(query="", **_):
-        return f'Looking up "{query}" on Wikipedia'
+    def describe(query="", as_of=None, **_):
+        return f'Looking up "{query}" on Wikipedia' + (f" (as of {as_of})" if as_of else "")
 
-    def run(self, context, query, language="en"):
+    def run(self, context, query, section=None, as_of=None, language="en"):
         # The language becomes part of the host name, so allow only a plain code.
         if not re.fullmatch(r"[a-z]{2,3}", language or ""):
             return ToolOutput("The language must be a Wikipedia code like 'en' or 'fa'.", "Wikipedia lookup failed")
+        if as_of and not re.fullmatch(r"\d{4}(-\d{2}-\d{2})?", str(as_of)):
+            return ToolOutput("'as_of' must be a year (2022) or a date (2022-12-31).", "Wikipedia lookup failed")
         api = f"https://{language}.wikipedia.org/w/api.php"
         try:
             check_public_url(api)
-            hits = requests.get(api, params={"action": "query", "list": "search", "srsearch": query, "srlimit": 1, "format": "json"},
-                                headers=WIKIPEDIA_HEADERS, timeout=HTTP_TIMEOUT).json()["query"]["search"]
-            if not hits:
-                return ToolOutput(f"Wikipedia ({language}) has no article for '{query}'.", f'Searched Wikipedia for "{query}" · nothing found')
-            title = hits[0]["title"]
-            pages = requests.get(api, params={"action": "query", "prop": "extracts", "explaintext": 1, "titles": title, "format": "json"},
-                                 headers=WIKIPEDIA_HEADERS, timeout=HTTP_TIMEOUT).json()["query"]["pages"]
+            return self._read(context, api, language, query, section, as_of)
         except (requests.RequestException, KeyError, ValueError, UnsafeURL) as e:
             return ToolOutput(f"Wikipedia lookup failed: {e}", "Wikipedia lookup failed")
-        extract = next(iter(pages.values())).get("extract", "")
-        url = f"https://{language}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
+
+    def _read(self, context, api, language, query, section, as_of):
+        def get(**params):
+            return requests.get(api, params={**params, "format": "json"}, headers=WIKIPEDIA_HEADERS, timeout=HTTP_TIMEOUT).json()
+
+        hits = get(action="query", list="search", srsearch=query, srlimit=5)["query"]["search"]
+        if not hits:
+            return ToolOutput(f"Wikipedia ({language}) has no article for '{query}'.", f'Searched Wikipedia for "{query}" · nothing found')
+        title = hits[0]["title"]
+
+        revision_params = {"rvstart": f"{as_of}T23:59:59Z" if len(str(as_of)) == 10 else f"{as_of}-12-31T23:59:59Z", "rvdir": "older"} if as_of else {}
+        page = next(iter(get(action="query", prop="revisions", titles=title, rvlimit=1, rvprop="ids|timestamp", **revision_params)["query"]["pages"].values()))
+        if not page.get("revisions"):
+            return ToolOutput(f"'{title}' has no revision from {as_of} or earlier.", f"Wikipedia: no {as_of} revision of {title}")
+        revision = page["revisions"][0]
+        sections = get(action="parse", oldid=revision["revid"], prop="sections")["parse"]["sections"]
+
+        wanted = self._pick_section(sections, section, query)
+        parts = [self._section_text(get, revision["revid"], "0")]
+        if wanted:
+            parts.append(self._section_text(get, revision["revid"], wanted["index"]))  # includes its heading
+
+        url = (
+            f"https://{language}.wikipedia.org/w/index.php?oldid={revision['revid']}" if as_of
+            else f"https://{language}.wikipedia.org/wiki/{quote(title.replace(' ', '_'))}"
+        )
         n = context.sources.add(("url", url), url=url)
-        return ToolOutput(f"[{n}] Wikipedia: {title} ({url})\n{relevant_windows(extract, query)}", f"Read Wikipedia: {title}")
+        header = f"[{n}] Wikipedia: {title} (revision of {revision['timestamp'][:10]}) {url}"
+        others = ", ".join(h["title"] for h in hits[1:])
+        outline = ", ".join(("  " * (int(s["toclevel"]) - 1)) + s["line"] for s in sections)
+        body = "\n\n".join(p for p in parts if p)
+        text = f"{header}\n" + (f"Other matching articles: {others}\n" if others else "") + f"Sections: {outline}\n\n{body}"
+        if section and not wanted:
+            text += f"\n\n(No section named '{section}'.)"
+        return ToolOutput(text, f"Read Wikipedia: {title}" + (f", {wanted['line']}" if wanted else "") + (f" (as of {as_of})" if as_of else ""))
+
+    @staticmethod
+    def _pick_section(sections, section, query):
+        if section:
+            return next((s for s in sections if s["line"].lower() == section.lower()), None) or next(
+                (s for s in sections if section.lower() in s["line"].lower()), None
+            )
+        words = {w for w in re.findall(r"\w+", query.lower()) if len(w) > 3}
+        scored = [(sum(w in s["line"].lower() for w in words), s) for s in sections]
+        best = max(scored, key=lambda item: item[0], default=(0, None))
+        return best[1] if best[0] else None
+
+    @staticmethod
+    def _section_text(get, revid, index):
+        html = get(action="parse", oldid=revid, prop="text", section=index)["parse"]["text"]["*"]
+        return html_to_text(html)

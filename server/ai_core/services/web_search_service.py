@@ -80,6 +80,37 @@ def check_public_url(url: str) -> None:
             raise UnsafeURL(f"{parsed.hostname} resolves to a non-public address")
 
 
+# Sites like Wikipedia reject requests' default User-Agent with 403.
+FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; DeepQuery/0.1; research assistant)"}
+
+
+def html_to_text(html: str) -> str:
+    """
+    Page text that keeps its structure: table rows as "a | b | c", list items as
+    "- item", headings as "## title". Plain get_text() put every table cell on
+    its own line, so rows (e.g. a year and an album) came apart.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "noscript"]):
+        tag.decompose()
+    # Wikipedia's edit links and citation markers ([12]).
+    for tag in soup.select(".mw-editsection, sup.reference, .reference, .noprint"):
+        tag.decompose()
+    for row in soup.find_all("tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["th", "td"])]
+        row.replace_with(soup.new_string("\n" + " | ".join(c for c in cells if c) + "\n"))
+    for item in soup.find_all("li"):
+        item.insert_before(soup.new_string("\n- "))
+    for level in range(1, 7):
+        for heading in soup.find_all(f"h{level}"):
+            heading.insert_before(soup.new_string("\n## "))
+            heading.insert_after(soup.new_string("\n"))
+    text = soup.get_text()
+    text = re.sub(r"[ \t\xa0]+", " ", text)
+    text = re.sub(r" *\n[ \n]*", "\n", text)
+    return text.strip()
+
+
 class WebPageFetcher:
     MAX_REDIRECTS = 3
     MAX_BYTES = 2_000_000
@@ -94,22 +125,13 @@ class WebPageFetcher:
             logger.info("Skipped %s: %s", url, e)
             return ""
 
-        soup = BeautifulSoup(html, "html.parser")
-
-        for tag in soup(["script", "style", "nav", "footer"]):
-            tag.decompose()
-
-        text = soup.get_text(separator="\n")
-        text = re.sub(r'[ \t]+', ' ', text)
-        text = re.sub(r'\n+', '\n', text)
-
-        return text[:20000]
+        return html_to_text(html)[:20000]
 
     def _get(self, url: str):
         # Redirects are followed by hand so every hop is checked.
         for _ in range(self.MAX_REDIRECTS + 1):
             check_public_url(url)
-            res = requests.get(url, timeout=self.TIMEOUT, allow_redirects=False, stream=True)
+            res = requests.get(url, headers=FETCH_HEADERS, timeout=self.TIMEOUT, allow_redirects=False, stream=True)
             if res.is_redirect:
                 url = urljoin(url, res.headers["Location"])
                 res.close()
