@@ -62,7 +62,8 @@ grades. `--no-judge` grades with the automatic checks only.
 
 1. **Numbers** – every expected value must appear in the answer, within its tolerance
    (Persian digits and separators are understood).
-2. **Retrieval** – did the agent retrieve the source that holds the answer?
+2. **Retrieval** – did the passages a question needs (its `evidence`) reach the model?
+   This is scored on the text actually put in the prompt, not just which files were used.
 3. **Citations** – does every `[n]` exist, and does the answer cite the right source?
 4. **Judge** – the judge model checks each key point and lists wrong or unsupported
    claims. Its verdict decides whether the answer is correct; the other checks show

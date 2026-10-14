@@ -27,6 +27,9 @@ def summarise(records: list[dict]) -> dict:
         "mean_score": rate(g["score"] for g in graded),
         "numbers_found_rate": rate(g["numbers_ok"] for g in with_numbers),
         "retrieval_hit_rate": rate(r["grading"]["retrieval"]["hit"] for r in with_cites),
+        "passage_hit_rate": rate(
+            r["grading"]["retrieval"]["passages_hit"] for r in records if r["grading"]["retrieval"].get("passages_hit") is not None
+        ),
         "expected_source_cited_rate": rate(r["grading"]["citations"]["expected_cited"] for r in with_cites),
         "invalid_citation_answers": sum(bool(g["citations"]["invalid_ids"]) for g in graded),
         "abstention_accuracy": rate(r["grading"]["correct"] for r in abstain),
@@ -80,7 +83,8 @@ def answer_markdown(record: dict) -> str:
     lines += [
         "",
         f"- Numbers: {numbers or '—'}",
-        f"- Retrieved sources: {', '.join(agent['retrieved_sources']) or 'none'}",
+        f"- Retrieved sources: {', '.join(agent.get('retrieved_passages') or agent['retrieved_sources']) or 'none'}",
+        *[f"- Needed passage {'✅' if p['found'] else '❌'} ({p['source']}): {p['passage']}" for p in g["retrieval"].get("passages", [])],
         f"- Cited: {', '.join(g['citations']['cited_files']) or 'none'} (expected: {', '.join(q['cite']) or 'none'})",
         f"- Time: {record['timings']}",
         "",
@@ -108,7 +112,8 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         ("Accuracy", "accuracy"),
         ("Mean key-point score", "mean_score"),
         ("Expected numbers found", "numbers_found_rate"),
-        ("Retrieved the right source", "retrieval_hit_rate"),
+        ("Retrieved the needed passages", "passage_hit_rate"),
+        ("Retrieved the right source (file level)", "retrieval_hit_rate"),
         ("Cited the right source", "expected_source_cited_rate"),
         ("Declined unanswerable questions", "abstention_accuracy"),
     ]
@@ -134,13 +139,14 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         "",
         "## Questions",
         "",
-        "| Id | Category | Result | Score | Retrieved | Cited | Seconds |",
+        "| Id | Category | Result | Score | Passages | Cited | Seconds |",
         "|---|---|---|---|---|---|---|",
     ]
     for r in records:
         g = r["grading"]
         cited = "—" if not r["question"]["cite"] else ("yes" if g["citations"]["expected_cited"] else "no")
-        retrieved = "—" if not r["question"]["cite"] else ("yes" if g["retrieval"]["hit"] else "no")
+        passages = g["retrieval"].get("passages_hit")
+        retrieved = "—" if passages is None else ("yes" if passages else "no")
         lines.append(
             f"| [{r['question']['id']}](answers/{r['question']['id']}.md) | {r['question']['category']} | "
             f"{'⚠️ not graded' if g.get('ungraded') else ('✅' if g['correct'] else '❌')} | {g['score']} | {retrieved} | {cited} | {r['timings'].get('answer_s')} |"

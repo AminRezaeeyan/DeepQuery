@@ -103,3 +103,13 @@ def test_the_judge_gets_a_longer_timeout():
 
     original_client.with_options.assert_called_once_with(timeout=600)
     assert result.client is original_client.with_options.return_value
+
+
+def test_retrieval_is_scored_on_the_needed_passages():
+    context = "--- Source [1] (refined.pdf, p. 6) ---\nReFinED   15\n89.4 Table 5"
+
+    result = grading.check_retrieval(["refined.pdf"], ["refined.pdf"], context, {"refined.pdf": ["ReFinED 15 89.4", "27k machine hours"]})
+
+    assert [p["found"] for p in result["passages"]] == [True, False]
+    assert result["passages_hit"] is False
+    assert result["hit"] is True  # the file-level check alone would have called this a success
