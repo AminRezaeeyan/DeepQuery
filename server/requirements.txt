@@ -29,7 +29,6 @@ transformers==5.19.0
 # Data & Document Processing
 pandas==3.0.2
 numpy==2.4.4
-pdfplumber==0.11.9
 pypdfium2==5.7.1
 beautifulsoup4==4.14.3
 openpyxl==3.1.5

@@ -1,8 +1,8 @@
 import os
 from typing import ClassVar
 
-import pdfplumber
 import pandas as pd
+import pypdfium2 as pdfium
 
 
 class DocumentProcessingService:
@@ -59,37 +59,45 @@ class DocumentProcessingService:
         return False
 
     @classmethod
-    def extract_text(cls, file_path: str) -> str:
+    def extract_segments(cls, file_path: str) -> list[dict]:
+        """
+        The document's text in labelled parts: one per PDF page ("p. 3"), one per
+        spreadsheet sheet ("sheet: prices"), or a single unlabelled part. Labels end
+        up in citations, so readers can find the passage.
+        """
         ext = cls.normalize_extension(file_path)
 
-        # NOTE: We deliberately insert \n\n between logical units
-        # so downstream chunking has good boundaries.
-
         if ext == ".pdf":
-            return cls._extract_pdf(file_path)
+            segments = cls._extract_pdf(file_path)
+        elif ext == ".csv":
+            segments = [{"label": None, "text": cls._extract_csv(file_path)}]
+        elif ext == ".xlsx":
+            segments = cls._extract_excel(file_path)
+        elif ext in cls.TEXT_EXTENSIONS:
+            segments = [{"label": None, "text": cls._extract_plain_like(file_path)}]
+        else:
+            raise ValueError(f"Unsupported file format: {ext}")
 
-        if ext == ".csv":
-            return cls._extract_csv(file_path)
+        return [seg for seg in segments if seg["text"].strip()]
 
-        if ext == ".xlsx":
-            return cls._extract_excel(file_path)
-
-        if ext in {".txt", ".py", ".js", ".ts", ".java", ".c", ".cpp", ".json", ".md"}:
-            return cls._extract_plain_like(file_path)
-
-        raise ValueError(f"Unsupported file format: {ext}")
-
+    @classmethod
+    def extract_text(cls, file_path: str) -> str:
+        return join_segments(cls.extract_segments(file_path))
 
     @staticmethod
-    def _extract_pdf(file_path: str) -> str:
-        texts: list[str] = []
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                page_text = page.extract_text() or ""
-                if page_text.strip():
-                    texts.append(page_text.strip())
-        # separate pages with double newline
-        return "\n\n".join(texts)
+    def _extract_pdf(file_path: str) -> list[dict]:
+        # pdfium keeps the spaces between words that pdfplumber dropped in
+        # two-column papers ("ThelargestpublicELdataset").
+        pdf = pdfium.PdfDocument(file_path)
+        try:
+            segments = []
+            for number in range(len(pdf)):
+                page = pdf[number]
+                text = page.get_textpage().get_text_range()
+                segments.append({"label": f"p. {number + 1}", "text": clean_pdf_text(text)})
+            return segments
+        finally:
+            pdf.close()
 
     @staticmethod
     def _extract_csv(file_path: str) -> str:
@@ -98,12 +106,24 @@ class DocumentProcessingService:
         return df.to_string(index=False)
 
     @staticmethod
-    def _extract_excel(file_path: str) -> str:
-        df = pd.read_excel(file_path)
-        return df.to_string(index=False)
+    def _extract_excel(file_path: str) -> list[dict]:
+        # Every sheet: prices and notes often live outside the first one.
+        sheets = pd.read_excel(file_path, sheet_name=None)
+        return [{"label": f"sheet: {name}", "text": df.to_string(index=False)} for name, df in sheets.items()]
 
     @staticmethod
     def _extract_plain_like(file_path: str) -> str:
         # programming languages / text-like: preserve line breaks
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             return f.read()
+
+
+def clean_pdf_text(text: str) -> str:
+    # pdfium marks a word broken across lines with U+FFFE ("men\ufffetion").
+    text = text.replace("\ufffe", "").replace("\r\n", "\n").replace("\r", "\n")
+    return text.strip()
+
+
+def join_segments(segments: list[dict]) -> str:
+    """One text for display and search, with each labelled part under its label."""
+    return "\n\n".join(f"[{seg['label']}]\n{seg['text']}" if seg["label"] else seg["text"] for seg in segments)
