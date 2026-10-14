@@ -1,6 +1,7 @@
 import re
 from typing import List, Optional
 from django.contrib.contenttypes.models import ContentType
+from django.conf import settings
 from django.db import transaction, connection
 from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 from ai_core.exceptions import ProviderUnavailable
@@ -13,10 +14,13 @@ class ChunkingService:
     Uses provider tokenizer + max_tokens + overlap to chunk intelligently.
     """
 
-    def __init__(self, provider, overlap_tokens: int = 50):
+    def __init__(self, provider, overlap_tokens: Optional[int] = None, chunk_tokens: Optional[int] = None):
         self.provider = provider
-        self.max_tokens = provider.max_input_tokens()
-        self.overlap_tokens = overlap_tokens
+        # Chunks are sized for retrieval, not by the embedding model's input limit:
+        # a few hundred tokens let search return the passage, not half a paper.
+        chunk_tokens = chunk_tokens or settings.RAG_CHUNK_TOKENS
+        self.max_tokens = min(provider.max_input_tokens(), chunk_tokens)
+        self.overlap_tokens = settings.RAG_CHUNK_OVERLAP_TOKENS if overlap_tokens is None else overlap_tokens
         
         if self.overlap_tokens >= self.max_tokens:
             raise ValueError("overlap_tokens must be less than max_tokens.")
