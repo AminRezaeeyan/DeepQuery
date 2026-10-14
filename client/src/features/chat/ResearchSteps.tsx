@@ -36,9 +36,17 @@ export function ResearchSteps({ steps, live }: { steps: AgentStep[]; live: boole
   if (!steps.length) return null;
 
   if (live) {
+    // One quiet line for what the agent is doing now; the answer is the only thing that streams.
+    const current = steps[steps.length - 1];
+    const Icon = ICONS[current.tool] ?? FileSearch;
     return (
-      <div className="steps steps--live" aria-live="polite">
-        <StepList steps={steps} />
+      <div className="steps-live" aria-live="polite">
+        <span className="thinking-bar" />
+        <Icon size={13} className="step-icon" />
+        <span className="step-text" dir="auto">
+          {current.summary}
+        </span>
+        <span className="steps-count">step {steps.length}</span>
       </div>
     );
   }
