@@ -15,9 +15,9 @@ class TestImagesReachTheModel:
 
     def _run(self, message):
         with patch("chats.services.chat_service.ChatGenerationService") as service_cls:
-            service_cls.return_value.stream_prepared.return_value = iter(["ok"])
+            service_cls.return_value.answer_events.return_value = iter([{"type": "text", "text": "ok"}])
             list(ChatService.generate_stream(message.chat, message))
-        return service_cls.return_value.stream_prepared.call_args
+        return service_cls.return_value.answer_events.call_args
 
     def test_image_bytes_and_type_are_passed_to_the_model(self, chat):
         message = Message.objects.create(

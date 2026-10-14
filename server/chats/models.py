@@ -102,6 +102,8 @@ class Message(models.Model):
     content = models.TextField()
 
     image = models.ImageField(upload_to='chat_images/', blank=True, null=True)
+    # The research agent's steps for an assistant message: [{"tool", "arguments", "summary"}].
+    trace = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     

@@ -69,6 +69,7 @@ def test_citations_name_the_page():
          patch("ai_core.services.chat_service.WebKnowledgeService"), \
          patch("ai_core.services.chat_service.DocumentRAGService") as rag:
         llm.return_value.provider_config.max_context_tokens = 128000
+        llm.return_value.provider.supports_tools = False  # the single-pass pipeline
         llm.return_value.stream.return_value = iter(["Answer [1]."])
         rag.return_value.build_knowledge_context.return_value = ("", results)
         service = ChatGenerationService(1, 1, is_temporary=True)
@@ -97,6 +98,7 @@ def test_references_list_only_the_cited_sources_with_their_numbers():
          patch("ai_core.services.chat_service.WebKnowledgeService"), \
          patch("ai_core.services.chat_service.DocumentRAGService") as rag:
         llm.return_value.provider_config.max_context_tokens = 128000
+        llm.return_value.provider.supports_tools = False  # the single-pass pipeline
         rag.return_value.build_knowledge_context.return_value = ("", pages)
         service = ChatGenerationService(1, 1, is_temporary=True)
 

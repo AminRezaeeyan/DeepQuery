@@ -10,7 +10,7 @@ from django.db.models import Q
 
 from ai_core.services.provider_service import ProviderService
 from ai_core.exceptions import ProviderUnavailable, ContextLimitExceededError
-from chats.services.chat_service import ChatService
+from chats.services.chat_service import STREAM_CONTENT_TYPE, ChatService
 from chats.pagination import ChatCursorPagination, MessageCursorPagination
 
 from subscriptions.services import SubscriptionService, SubscriptionLimitExceeded
@@ -151,7 +151,7 @@ class ChatViewSet(viewsets.ModelViewSet):
 
             return StreamingHttpResponse(
                 stream,
-                content_type="text/plain"
+                content_type=STREAM_CONTENT_TYPE
             )
     
 
@@ -206,6 +206,6 @@ class MessageViewSet(
 
         return StreamingHttpResponse(
             stream,
-            content_type="text/plain"
+            content_type=STREAM_CONTENT_TYPE
         )
 

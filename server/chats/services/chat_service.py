@@ -9,14 +9,22 @@ from ai_core.services.chat_service import ChatGenerationService
 
 logger = logging.getLogger(__name__)
 
-# Ends a stream that failed after it started. The client splits on this
-# character (ASCII record separator, never in model output) and reads the
-# JSON after it as the error.
-STREAM_ERROR_MARKER = "\x1e"
+# Answers stream as JSON lines, one event per line:
+#   {"type": "text", "text": ...}       answer text
+#   {"type": "reset"}                   drop the text so far (a preamble before tool calls)
+#   {"type": "step", "id", "tool", "status": "running" | "done", "summary"}
+#   {"type": "error", "detail": ...}    the answer failed after streaming started
+STREAM_CONTENT_TYPE = "application/x-ndjson"
+
+
+def event_line(event: dict) -> str:
+    # Tool outputs stay on the server (they can be long and are for the model and the eval).
+    public = {k: v for k, v in event.items() if k != "output"}
+    return json.dumps(public, ensure_ascii=False) + "\n"
 
 
 def stream_error(detail):
-    return STREAM_ERROR_MARKER + json.dumps({"detail": detail})
+    return event_line({"type": "error", "detail": detail})
 
 
 class ChatService:
@@ -51,17 +59,24 @@ class ChatService:
 
         def stream():
             assistant_text = ""
+            steps = []
             completed = False
 
             try:
-                for token in chat_service.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type):
-                    assistant_text += token
-                    yield token
+                for event in chat_service.answer_events(prepared, image_bytes=image_bytes, mime_type=mime_type):
+                    if event["type"] == "text":
+                        assistant_text += event["text"]
+                    elif event["type"] == "reset":
+                        assistant_text = ""
+                    elif event["type"] == "step" and event["status"] == "done":
+                        steps.append({"tool": event["tool"], "arguments": event["arguments"], "summary": event["summary"]})
+                    yield event_line(event)
 
                 Message.objects.create(
                     chat=chat,
                     role=Message.Role.ASSISTANT,
-                    content=assistant_text
+                    content=assistant_text,
+                    trace=steps,
                 )
                 completed = True
             except ContextLimitExceededError as e:

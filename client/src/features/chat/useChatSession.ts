@@ -100,9 +100,21 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
       let streamed = "";
       try {
         const res = await start(controller.signal);
-        await readStream(res, (text) => {
-          streamed = text;
-          setMessages((m) => m.map((x) => (x.uuid === assistantId ? { ...x, content: text } : x)));
+        await readStream(res, {
+          onText: (text) => {
+            streamed = text;
+            setMessages((m) => m.map((x) => (x.uuid === assistantId ? { ...x, content: text } : x)));
+          },
+          onStep: (step) =>
+            setMessages((m) =>
+              m.map((x) => {
+                if (x.uuid !== assistantId) return x;
+                const steps = x.trace ?? [];
+                // A step arrives "running", then again "done" with the same id.
+                const known = steps.some((s) => s.id === step.id);
+                return { ...x, trace: known ? steps.map((s) => (s.id === step.id ? step : s)) : [...steps, step] };
+              }),
+            ),
         });
         const { list, next } = await fetchLatest(uuid);
         setMessages(list);

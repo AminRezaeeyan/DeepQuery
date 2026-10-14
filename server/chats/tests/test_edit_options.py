@@ -22,7 +22,7 @@ class TestEditKeepsTheRequest:
         Message.objects.create(chat=chat, role=Message.Role.ASSISTANT, content="old answer")
 
         with patch("chats.services.chat_service.ChatGenerationService") as service_cls:
-            service_cls.return_value.stream_prepared.return_value = iter(["new answer"])
+            service_cls.return_value.answer_events.return_value = iter([{"type": "text", "text": "new answer"}])
             response = auth_client.patch(
                 f"/api/messages/{question.uuid}/",
                 {
