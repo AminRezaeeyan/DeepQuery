@@ -5,13 +5,17 @@ step limit. Yields events for the stream:
 
     {"type": "step", "id", "tool", "status": "running" | "done", "summary", "output"?}
     {"type": "text", "text"}      answer text as it streams
-    {"type": "reset"}             the text so far was a preamble before tool calls; drop it
+    {"type": "reset"}             rare: streamed text turned out to be a preamble; drop it
 """
 import json
 
 from ai_core.services.token_service import TokenService
 
 from .tools import ToolContext, describe_call, run_tool
+
+# A turn's text is held back until it's this long: models often write a short
+# preamble ("Let me search the documents.") before calling tools, which isn't the answer.
+PREAMBLE_CHARS = 200
 
 
 def content_text(content) -> str:
@@ -48,19 +52,27 @@ class ResearchAgent:
             # Out of steps or room: the last turn must answer with what it has.
             final = turn == self.max_steps or conversation_tokens(messages) > self.token_budget
             choice = "none" if final else (self.first_tool if turn == 0 and self.first_tool else "auto")
-            text, calls = "", None
+            text, calls, streaming = "", None, choice == "none"
             for kind, value in self.provider.stream_turn(messages, self.tools, tool_choice=choice):
                 if kind == "text":
                     text += value
-                    yield {"type": "text", "text": value}
+                    if streaming:
+                        yield {"type": "text", "text": value}
+                    elif len(text) >= PREAMBLE_CHARS:
+                        # Long enough to be the answer rather than "Let me check...": stream it.
+                        streaming = True
+                        yield {"type": "text", "text": text}
                 else:
                     calls = value
 
             if not calls:
+                if text and not streaming:
+                    yield {"type": "text", "text": text}
                 self.answer = text
                 return
 
-            if text:
+            if streaming:
+                # Rare: a long text turned out to be a preamble after all.
                 yield {"type": "reset"}
             messages.append({
                 "role": "assistant",
