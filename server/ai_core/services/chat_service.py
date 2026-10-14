@@ -211,6 +211,7 @@ class ChatGenerationService:
             max_steps=settings.AGENT_MAX_STEPS,
             token_budget=TokenService.get_available_budget(self.provider_config.max_context_tokens),
             first_tool="search_documents" if has_documents(self.chat_id, self.user_id) else None,
+            review=settings.AGENT_REVIEW,
         )
         yield from agent.run(prepared["messages"])
 

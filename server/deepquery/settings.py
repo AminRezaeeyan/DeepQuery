@@ -159,6 +159,8 @@ RAG_CHUNK_OVERLAP_TOKENS = config("RAG_CHUNK_OVERLAP_TOKENS", default=60, cast=i
 # --- RESEARCH AGENT ---
 # Tool-calling turns before the agent must answer with what it has.
 AGENT_MAX_STEPS = config("AGENT_MAX_STEPS", default=10, cast=int)
+# Check an answer that used tools against their results before sending it (one extra model turn).
+AGENT_REVIEW = config("AGENT_REVIEW", default=True, cast=bool)
 
 # --- CODE EXECUTION (the agent's run_python tool) ---
 # "auto" uses bubblewrap when installed (isolated filesystem and network),

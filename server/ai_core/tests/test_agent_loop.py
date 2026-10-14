@@ -113,7 +113,7 @@ class TestAgentThroughTheChat:
         return chat
 
     def test_the_answer_streams_steps_and_cites_the_page(self, chat):
-        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 15 s [1].")])
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 20 s [1].")], [("text", "ReFinED takes 15 s [1].")])
         client = __import__("rest_framework.test", fromlist=["APIClient"]).APIClient()
         client.force_authenticate(chat.user)
 
@@ -126,11 +126,12 @@ class TestAgentThroughTheChat:
             events = [json.loads(line) for line in b"".join(response.streaming_content).decode().splitlines()]
 
         steps = [e for e in events if e["type"] == "step"]
-        assert [s["status"] for s in steps] == ["running", "done"]
+        assert [s["status"] for s in steps] == ["running", "done", "running", "done"]
         assert all("output" not in s for s in steps)  # tool outputs stay on the server
         answer = Message.objects.get(chat=chat, role=Message.Role.ASSISTANT)
         assert answer.content == "ReFinED takes 15 s [1].\n\n**References:**\n[1] refined.pdf, p. 6\n"
-        assert answer.trace == [{"tool": "read_document", "arguments": {"name": "refined.pdf", "part": "6"}, "summary": "Read refined.pdf, p. 6"}]
+        assert answer.trace == [{"tool": "read_document", "arguments": {"name": "refined.pdf", "part": "6"}, "summary": "Read refined.pdf, p. 6"},
+                                {"tool": "check_answer", "arguments": {}, "summary": "Checked the answer"}]
         # The agent was told which documents it can read.
         assert "refined.pdf (7 pages, done)" in model.calls[0]["messages"][0]["content"]
 
@@ -229,3 +230,49 @@ def test_openai_reports_a_stream_that_stops_mid_answer_as_stalled():
         config = SimpleNamespace(api_key="k", model_name="m", base_url=None, max_context_tokens=1000)
         with pytest.raises(ProviderStalled):
             list(OpenAIProvider(config).stream_turn([{"role": "user", "content": "q"}], []))
+
+
+@pytest.mark.django_db
+class TestAnswerReview:
+
+    def agent(self, context, model):
+        return ResearchAgent(model, context, tool_definitions(web=False), max_steps=8, token_budget=100_000, review=True)
+
+    def test_the_draft_is_checked_and_only_the_revised_answer_is_sent(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes about 20 s [1].")], [("text", "ReFinED takes 15 s [1].")])
+        messages = [{"role": "user", "content": "How fast is ReFinED?"}]
+
+        events = run(self.agent(context, model), messages)
+
+        assert [(e["type"], e.get("tool"), e.get("status")) for e in events] == [
+            ("step", "read_document", "running"), ("step", "read_document", "done"),
+            ("step", "check_answer", "running"), ("step", "check_answer", "done"),
+            ("text", None, None),
+        ]
+        assert events[-1]["text"] == "ReFinED takes 15 s [1]."
+        # The model saw its draft and the request to check it.
+        assert messages[-2] == {"role": "assistant", "content": "ReFinED takes about 20 s [1]."}
+        assert messages[-1]["role"] == "user" and "Check your draft" in messages[-1]["content"]
+
+    def test_the_check_can_use_tools_before_answering(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "Draft.")], read_page_6(), [("text", "Checked answer.")])
+
+        events = run(self.agent(context, model), [{"role": "user", "content": "q"}])
+
+        tools = [(e["tool"], e["status"]) for e in events if e["type"] == "step"]
+        assert tools[2:] == [("check_answer", "running"), ("check_answer", "done"), ("read_document", "running"), ("read_document", "done")]
+        assert events[-1] == {"type": "text", "text": "Checked answer."}
+
+    def test_answers_without_tools_are_not_checked(self, context):
+        model = ScriptedModel([("text", "Hello!")])
+
+        assert run(self.agent(context, model), [{"role": "user", "content": "hi"}]) == [{"type": "text", "text": "Hello!"}]
+
+    def test_an_empty_check_keeps_the_draft(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 15 s [1].")], [])
+
+        agent = self.agent(context, model)
+        events = run(agent, [{"role": "user", "content": "q"}])
+
+        assert events[-1] == {"type": "text", "text": "ReFinED takes 15 s [1]."}
+        assert agent.answer == "ReFinED takes 15 s [1]."
