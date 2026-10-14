@@ -32,6 +32,7 @@ def summarise(records: list[dict]) -> dict:
         "abstention_accuracy": rate(r["grading"]["correct"] for r in abstain),
         "errors": [r["question"]["id"] for r in records if r["agent"]["error"]],
         "judge_failures": [r["question"]["id"] for r in records if not r["grading"]["judge"].get("verdict")],
+        "ungraded": [r["question"]["id"] for r in records if r["grading"].get("ungraded")],
         "mean_answer_seconds": rate(timings),
         "accuracy_by_category": {k: rate(v) for k, v in sorted(by_category.items())},
         "accuracy_by_capability": {k: rate(v) for k, v in sorted(by_capability.items())},
@@ -50,7 +51,7 @@ def answer_markdown(record: dict) -> str:
     q, agent, g = record["question"], record["agent"], record["grading"]
     verdict = (g["judge"] or {}).get("verdict") or {}
     lines = [
-        f"# {q['id']} · {q['category']} · {'correct' if g['correct'] else 'incorrect'} (score {g['score']})",
+        f"# {q['id']} · {q['category']} · {'not graded (judge failed)' if g.get('ungraded') else ('correct' if g['correct'] else 'incorrect')} (score {g['score']})",
         "",
         "## Question",
         "",
@@ -117,7 +118,7 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
     lines += [
         "",
         f"Correct: {summary['correct']}/{summary['questions']} · Answers citing a missing source: {summary['invalid_citation_answers']}"
-        f" · Errors: {', '.join(summary['errors']) or 'none'} · Judge failures: {', '.join(summary['judge_failures']) or 'none'}",
+        f" · Errors: {', '.join(summary['errors']) or 'none'} · Not graded (judge failed): {', '.join(summary['ungraded']) or 'none'}",
         "",
         "## By category",
         "",
@@ -142,7 +143,7 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         retrieved = "—" if not r["question"]["cite"] else ("yes" if g["retrieval"]["hit"] else "no")
         lines.append(
             f"| [{r['question']['id']}](answers/{r['question']['id']}.md) | {r['question']['category']} | "
-            f"{'✅' if g['correct'] else '❌'} | {g['score']} | {retrieved} | {cited} | {r['timings'].get('answer_s')} |"
+            f"{'⚠️ not graded' if g.get('ungraded') else ('✅' if g['correct'] else '❌')} | {g['score']} | {retrieved} | {cited} | {r['timings'].get('answer_s')} |"
         )
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 

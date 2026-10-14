@@ -21,7 +21,7 @@ from ai_core.models import EmbeddingProvider, LLMProvider
 from ai_core.services.provider_service import ProviderService
 from evaluation import report
 from evaluation.loader import QuestionFileError, load_questions
-from evaluation.runner import QuestionRunner
+from evaluation.runner import ModelUnavailable, QuestionRunner
 
 EVAL_DIR = Path(settings.BASE_DIR).parent / "eval"
 
@@ -67,6 +67,12 @@ class Command(BaseCommand):
         if judge and judge.id == agent.id:
             self.stdout.write(self.style.WARNING("The judge is the same model as the agent; a stronger judge gives fairer grades."))
 
+        runner = QuestionRunner(Path(opts["sources"]), agent, judge, keep_data=opts["keep_data"])
+        try:
+            runner.check_models()
+        except ModelUnavailable as e:
+            raise CommandError(f"{e}\nFix the provider in the admin (model name, key or base URL) and run again.")
+
         commit = git("rev-parse", "--short", "HEAD") or "unknown"
         run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{commit}"
         run_dir = Path(opts["out"]) / run_id
@@ -84,7 +90,6 @@ class Command(BaseCommand):
             "question_ids": [q.id for q in questions],
         }
 
-        runner = QuestionRunner(Path(opts["sources"]), agent, judge, keep_data=opts["keep_data"])
         records, started = [], time.monotonic()
         for i, question in enumerate(questions, 1):
             self.stdout.write(f"[{i}/{len(questions)}] {question.id} ({question.category}) ...", ending="")
@@ -93,7 +98,10 @@ class Command(BaseCommand):
             report.write_question(run_dir, record)
             records.append(record)
             g = record["grading"]
-            status = self.style.SUCCESS("correct") if g["correct"] else self.style.ERROR("incorrect")
+            if g.get("ungraded"):
+                status = self.style.WARNING("not graded (judge failed)")
+            else:
+                status = self.style.SUCCESS("correct") if g["correct"] else self.style.ERROR("incorrect")
             self.stdout.write(f" {status} (score {g['score']}, {record['timings'].get('answer_s')} s)")
 
         meta["duration_s"] = round(time.monotonic() - started, 1)
