@@ -23,6 +23,7 @@ from . import grading
 logger = logging.getLogger(__name__)
 
 EVAL_USER_EMAIL = "eval-runner@deepquery.local"
+JUDGE_TIMEOUT = 600  # seconds
 
 
 class ModelUnavailable(Exception):
@@ -37,15 +38,26 @@ def eval_user():
     return user
 
 
-def provider_instance(llm_provider):
+def provider_instance(llm_provider, timeout=None):
     """An LLM provider object for any configured provider, whatever its tasks."""
     ProviderFactory._auto_import_providers()
-    return PROVIDER_REGISTRY[llm_provider.provider_type](llm_provider)
+    instance = PROVIDER_REGISTRY[llm_provider.provider_type](llm_provider)
+    client = getattr(instance, "client", None)
+    if timeout and hasattr(client, "with_options"):  # OpenAI and Anthropic SDK clients
+        instance.client = client.with_options(timeout=timeout)
+    return instance
+
+
+def message_text(content) -> str:
+    """The text of a message, whether plain or a list of parts (text plus image)."""
+    if isinstance(content, list):
+        return "\n".join(part.get("text", "") for part in content if isinstance(part, dict))
+    return content or ""
 
 
 def sources_block(messages: list[dict]) -> str:
     """The retrieved text the model saw, from the <sources> tag in the final user turn."""
-    last = messages[-1]["content"] if messages else ""
+    last = message_text(messages[-1]["content"]) if messages else ""
     m = re.search(r"<sources>\n?(.*?)\n?</sources>", last, flags=re.DOTALL)
     return m.group(1) if m else ""
 
@@ -55,7 +67,8 @@ class QuestionRunner:
         self.sources_dir = Path(sources_dir)
         self.agent_provider = agent_provider
         self.judge_provider = judge_provider
-        self.judge = provider_instance(judge_provider) if judge_provider else None
+        # Reasoning models can take minutes to grade a long answer.
+        self.judge = provider_instance(judge_provider, timeout=JUDGE_TIMEOUT) if judge_provider else None
         self.keep_data = keep_data
         self.user = eval_user()
 

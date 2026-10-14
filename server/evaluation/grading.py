@@ -66,6 +66,10 @@ def check_retrieval(retrieved_files: list[str], expected_files: list[str]) -> di
     }
 
 
+# Enough for the judge to check claims against what the agent actually saw.
+JUDGE_CONTEXT_CHARS = 60000
+JUDGE_ATTEMPTS = 2
+
 JUDGE_SYSTEM = """You grade answers from a research assistant against a reference answer.
 Be strict and literal. A key point is met only if the answer states it correctly; numbers
 must match the reference (rounding to the shown precision is fine). Extra correct detail is
@@ -95,7 +99,7 @@ def judge_messages(question, answer_body: str, references: dict, retrieved_conte
         "expectation": f"{expectation} {language}".strip(),
         "answer_to_grade": answer_body,
         "answer_references": references,
-        "retrieved_sources_excerpt": retrieved_context[:15000],
+        "retrieved_sources_excerpt": retrieved_context[:JUDGE_CONTEXT_CHARS],
     }
     return [
         {"role": "system", "content": JUDGE_SYSTEM},
@@ -122,7 +126,13 @@ def parse_judge_reply(text: str) -> dict:
 def judge(provider, question, answer_body: str, references: dict, retrieved_context: str) -> dict:
     """Asks the judge model to grade the answer. Returns the parsed verdict and the raw reply."""
     messages = judge_messages(question, answer_body, references, retrieved_context)
-    raw = "".join(provider.stream(messages))
+    for attempt in range(1, JUDGE_ATTEMPTS + 1):
+        try:
+            raw = "".join(provider.stream(messages))
+            break
+        except Exception:
+            if attempt == JUDGE_ATTEMPTS:
+                raise  # the runner records the error and marks the answer ungraded
     try:
         verdict = parse_judge_reply(raw)
         error = None

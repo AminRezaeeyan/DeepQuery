@@ -62,3 +62,44 @@ def test_judge_sends_the_question_and_reference_to_the_model():
     assert result["verdict"]["correct"] is True
     prompt = sent[0][1]["content"]
     assert "61x faster" in prompt and "حدود ۶۱ برابر" in prompt and "Persian" in prompt
+
+
+def test_judge_retries_once_after_a_failure():
+    class FlakyJudge:
+        calls = 0
+
+        def stream(self, messages):
+            FlakyJudge.calls += 1
+            if FlakyJudge.calls == 1:
+                raise TimeoutError("read timed out")
+            yield '{"key_points": [], "correct": true, "reasoning": "ok"}'
+
+    question = SimpleNamespace(question="q", answer="a", grading={}, abstain=False, language="en")
+
+    result = grading.judge(FlakyJudge(), question, "answer", {}, "")
+
+    assert FlakyJudge.calls == 2
+    assert result["verdict"]["correct"] is True
+
+
+def test_sources_are_read_from_messages_with_an_attached_image():
+    from evaluation.runner import sources_block
+
+    messages = [{"role": "user", "content": [{"type": "text", "text": "<sources>\nTable 5\n</sources>\n\nq"}, {"type": "image_url", "image_url": {"url": "data:..."}}]}]
+
+    assert sources_block(messages) == "Table 5"
+
+
+def test_the_judge_gets_a_longer_timeout():
+    from unittest.mock import MagicMock, patch
+    from ai_core.llm_providers.factory import ProviderFactory
+    from evaluation.runner import provider_instance
+
+    ProviderFactory._auto_import_providers()  # load the real registry first, then stub it
+    instance = MagicMock()
+    original_client = instance.client
+    with patch.dict("ai_core.llm_providers.base.PROVIDER_REGISTRY", {"openai": lambda config: instance}):
+        result = provider_instance(SimpleNamespace(provider_type="openai"), timeout=600)
+
+    original_client.with_options.assert_called_once_with(timeout=600)
+    assert result.client is original_client.with_options.return_value

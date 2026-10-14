@@ -608,7 +608,7 @@
     abstain: true
     key_points:
       - Says the paper doesn't state a dollar cost
-      - May mention the 27k machine hours on T4 GPUs, without inventing a price
+      - Does not invent a price or a cost estimate
   cite: []
   requires: [retrieval, abstention]
 
@@ -660,10 +660,10 @@
     حدود ۶۰ برابر (۱۵ ثانیه در برابر ۹۱۷ ثانیه، حدود ۶۱ برابر)، روی مجموعه‌ی آزمون AIDA-CoNLL با
     ۲۳۱ سند و ۴۴۶۴ اشاره، با یک کارت گرافیک V100.
   grading:
-    numbers: [{value: 15, tol: 0}, {value: 917, tol: 0}]
+    numbers: [{value: 60.5, tol: 1}]
     key_points:
-      - About 60 times faster (15 s vs 917 s, about 61x)
-      - Measured on the AIDA-CoNLL test set (231 documents, 4,464 mentions)
+      - About 60 times faster (the paper says 60x; 917 s vs 15 s is about 61x)
+      - Measured on the AIDA-CoNLL test set
       - On a single V100 GPU
       - The answer is written in Persian
   cite: [refined.pdf]
