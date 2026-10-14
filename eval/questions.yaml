@@ -131,16 +131,18 @@
   sources: [blink.pdf, refined.pdf]
   answer: >
     BLINK's best is 76.8 accuracy (trained on Wikipedia and in-domain data); ReFinED reports
-    66.5 total ED accuracy (61.6 seen, 68.2 unseen), 10.3 points lower. Not a like-for-like
-    comparison: BLINK's best uses in-domain fine-tuning (75.2 with Wikipedia only), while
-    ReFinED reports it as a zero-shot ED experiment.
+    66.5 total ED accuracy (61.6 seen, 68.2 unseen), 10.3 points lower. Only roughly comparable:
+    both train on the dataset's in-domain training data and report accuracy on the same test set
+    ("zero-shot" in ReFinED refers to the unseen entities, not to skipping in-domain training), but
+    the systems differ in encoders, candidate generation and pretraining, and ReFinED doesn't
+    compare itself with BLINK there.
   grading:
     numbers: [{value: 76.8, tol: 0.05}, {value: 66.5, tol: 0.05}, {value: 10.3, tol: 0.1}]
     key_points:
       - BLINK's best result is 76.8 (Wikipedia + in-domain training)
       - ReFinED reports 66.5 total accuracy
       - The gap is about 10.3 points in BLINK's favour
-      - The setups differ (BLINK fine-tuned in-domain vs ReFinED's zero-shot setting), so the comparison isn't like-for-like
+      - Only roughly comparable - same test set and both trained in-domain, but different systems and setups (encoders, candidates, pretraining)
   cite: [blink.pdf, refined.pdf]
   evidence:
     blink.pdf: ["Ours Wiki and in-domain 76.8"]
