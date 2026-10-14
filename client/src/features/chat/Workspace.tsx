@@ -349,9 +349,13 @@ export function Workspace() {
                   status={status}
                   onEdit={canEdit && i === lastUserIdx ? (text) => session.edit(m, text, options) : undefined}
                   onRetry={
-                    canEdit && m.role === "assistant" && i === messages.length - 1 && i > lastUserIdx
-                      ? () => session.edit(lastUser, lastUser.content, options)
-                      : undefined
+                    m.error
+                      ? busy
+                        ? undefined
+                        : () => session.retry(m)
+                      : canEdit && m.role === "assistant" && i === messages.length - 1 && i > lastUserIdx
+                        ? () => session.edit(lastUser, lastUser.content, options)
+                        : undefined
                   }
                 />
               ))}

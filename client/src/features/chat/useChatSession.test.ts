@@ -95,3 +95,51 @@ describe("useChatSession", () => {
     expect(signal?.aborted).toBe(true);
   });
 });
+
+describe("failed answers", () => {
+  const deps = () => ({ ensureChat: async () => CHAT, onChatTouched: vi.fn(), onError: vi.fn() });
+  const saved = { uuid: "q1", role: "user" as const, content: "Question", image: null, created_at: "2026-01-01T00:00:00Z" };
+
+  it("stay in the chat with the error, and retry regenerates a saved question", async () => {
+    api.sendMessage.mockResolvedValue(new Response('Partial \u001e{"detail": "The model stopped."}'));
+    api.messages.mockResolvedValue({ next: null, previous: null, results: [saved] });
+    api.editMessage.mockResolvedValue(new Response("Fresh answer"));
+    const d = deps();
+    const { result } = renderHook(() => useChatSession({ ...d, chatId: CHAT.uuid }));
+    await waitFor(() => expect(result.current.loading).toBe(false)); // the chat has loaded before the user sends
+
+    await act(() => result.current.send("Question", OPTIONS, null));
+
+    const failed = result.current.messages.at(-1)!;
+    expect(failed.error).toBe("The model stopped.");
+    expect(failed.content).toBe("Partial ");
+    expect(result.current.messages.map((m) => m.uuid).slice(0, -1)).toEqual(["q1"]);
+    expect(d.onError).not.toHaveBeenCalled();
+
+    await act(() => result.current.retry(failed));
+
+    expect(api.editMessage).toHaveBeenCalledWith("q1", "Question", OPTIONS, expect.anything());
+    expect(api.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("resend a question the server rejected before saving it", async () => {
+    const { ApiError } = await import("../../lib/api");
+    api.sendMessage.mockRejectedValueOnce(new ApiError(400, "You have reached your daily message limit (20)."));
+    api.messages.mockResolvedValue({ next: null, previous: null, results: [] });
+    const d = deps(); // created once: a new onError per render would re-run the load effect forever
+    const { result } = renderHook(() => useChatSession({ ...d, chatId: CHAT.uuid }));
+    await waitFor(() => expect(result.current.loading).toBe(false)); // the chat has loaded before the user sends
+
+    await act(() => result.current.send("Question", OPTIONS, null));
+
+    const failed = result.current.messages.at(-1)!;
+    expect(failed.error).toContain("daily message limit");
+    expect(result.current.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+
+    api.sendMessage.mockResolvedValue(new Response("Answer"));
+    await act(() => result.current.retry(failed));
+
+    expect(api.sendMessage).toHaveBeenCalledTimes(2);
+    expect(api.editMessage).not.toHaveBeenCalled();
+  });
+});
