@@ -149,6 +149,11 @@ LOGGING = {
     "loggers": {name: {"level": "WARNING"} for name in ("httpx", "httpcore", "openai", "anthropic")},
 }
 
+# --- RETRIEVAL ---
+# Size of the passages documents are split into for search, in tokens.
+RAG_CHUNK_TOKENS = config("RAG_CHUNK_TOKENS", default=400, cast=int)
+RAG_CHUNK_OVERLAP_TOKENS = config("RAG_CHUNK_OVERLAP_TOKENS", default=60, cast=int)
+
 # --- UPLOADS ---
 # Uploads are stored under server/ (chat_images/, user_documents/) and never
 # served from a public URL: chat images go through /api/messages/<uuid>/image/.
