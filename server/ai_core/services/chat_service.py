@@ -146,14 +146,18 @@ class ChatGenerationService:
         citation_map = prepared["citation_map"]
 
         # Stream LLM output
+        answer = ""
         for token in self.llm.stream(prepared["messages"], image_bytes=image_bytes, mime_type=mime_type):
+            answer += token
             yield token
 
-        # 8. Append References List at the end of the stream
-        if citation_map:
+        # 8. Append the sources the answer cites (not every passage retrieved),
+        # keeping their numbers so [n] in the text still matches.
+        cited = {int(n) for n in re.findall(r"\[(\d{1,3})\]", answer)}
+        references = sorted((c for c in citation_map.values() if c["cite_id"] in cited), key=lambda c: c["cite_id"])
+        if references:
             yield "\n\n**References:**\n"
-            sorted_cites = sorted(citation_map.values(), key=lambda x: x["cite_id"])
-            for cit in sorted_cites:
+            for cit in references:
                 yield f"[{cit['cite_id']}] {cit['label']}\n"
 #
 

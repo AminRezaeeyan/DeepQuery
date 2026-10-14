@@ -28,6 +28,12 @@ export function splitAnswer(text: string): { body: string; references: Reference
   return { body: text.slice(0, at).trimEnd(), references };
 }
 
+/** The references the answer actually cites (older answers listed every retrieved passage). */
+export function citedReferences(body: string, references: Reference[]): Reference[] {
+  const cited = new Set([...body.matchAll(/\[(\d{1,3})\]/g)].map((m) => Number(m[1])));
+  return references.filter((r) => cited.has(r.id));
+}
+
 /** Turns [1] and [1][2] citations into links the markdown renderer shows as chips. */
 export function linkCitations(body: string): string {
   // Leave code spans and fences alone.

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Check, CircleAlert, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
 import { Markdown } from "../../components/Markdown";
 import { api } from "../../lib/api";
-import { hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
+import { citedReferences, hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
 import type { UIMessage } from "./useChatSession";
 
 /** Chat images need the auth header, so they're fetched rather than linked. */
@@ -83,7 +83,8 @@ function Sources({ refs, flashId }: { refs: Reference[]; flashId: number | null 
 }
 
 function AssistantMessage({ message, status, onRetry }: { message: UIMessage; status: string; onRetry?: () => void }) {
-  const { body, references } = splitAnswer(message.content);
+  const { body, references: listed } = splitAnswer(message.content);
+  const references = citedReferences(body, listed);
   const [flash, setFlash] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
