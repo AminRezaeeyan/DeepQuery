@@ -85,3 +85,19 @@ class TestUrlsFromPrompt:
             WebKnowledgeService(chat=1, user=1).gather_and_embed(prompt)
 
         assert fetch.call_count == WebKnowledgeService.MAX_SEARCH_RESULTS
+
+
+def test_tables_keep_their_rows_and_pages_get_a_browser_like_user_agent():
+    from ai_core.services.web_search_service import FETCH_HEADERS, html_to_text
+
+    html = "<h2>Albums<span class='mw-editsection'>edit</span></h2><table><tr><th>Year</th><th>Title</th></tr><tr><td>2005</td><td>Corazón Libre<sup class='reference'>[1]</sup></td></tr></table><ul><li>EP one</li></ul>"
+    text = html_to_text(html)
+
+    assert "## Albums" in text and "edit" not in text
+    assert "2005 | Corazón Libre" in text and "[1]" not in text
+    assert "- EP one" in text
+    assert "python-requests" not in FETCH_HEADERS["User-Agent"]
+
+    with resolves_to("93.184.215.14"), patch("ai_core.services.web_search_service.requests.get", return_value=response()) as get:
+        WebPageFetcher().fetch("https://en.wikipedia.org/wiki/Mercedes_Sosa")
+    assert get.call_args.kwargs["headers"] == FETCH_HEADERS

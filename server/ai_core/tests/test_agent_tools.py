@@ -115,25 +115,65 @@ def test_fetch_page_returns_the_parts_matching_the_query(context):
     assert output.text.startswith("[1] (https://example.org/aida)")
 
 
+SOSA_SECTIONS = [
+    {"index": "1", "line": "Life", "toclevel": 1},
+    {"index": "5", "line": "Discography", "toclevel": 1},
+    {"index": "6", "line": "Studio albums", "toclevel": 2},
+]
+STUDIO_HTML = """<h3>Studio albums</h3><table><tr><th>Year</th><th>Album</th></tr>
+<tr><td>2005</td><td>Corazón Libre<sup class="reference">[3]</sup></td></tr>
+<tr><td>2009</td><td>Cantora 1</td></tr></table>"""
+
+
+def fake_wikipedia(calls):
+    def get(url, params, headers, timeout):
+        calls.append(params)
+        if params.get("list") == "search":
+            data = {"query": {"search": [{"title": "Mercedes Sosa"}, {"title": "Cantora, un Viaje Íntimo"}]}}
+        elif params.get("prop") == "revisions":
+            data = {"query": {"pages": {"1": {"revisions": [{"revid": 1126540422, "timestamp": "2022-12-09T22:29:41Z"}]}}}}
+        elif params.get("prop") == "sections":
+            data = {"parse": {"sections": SOSA_SECTIONS}}
+        elif params.get("section") == "0":
+            data = {"parse": {"text": {"*": "<p>Mercedes Sosa was an Argentine singer.</p>"}}}
+        else:
+            data = {"parse": {"text": {"*": STUDIO_HTML}}}
+        return MagicMock(json=lambda: data)
+    return get
+
+
 @pytest.mark.django_db
 class TestWikipedia:
 
-    def test_returns_the_best_article(self, context):
-        search = MagicMock(json=lambda: {"query": {"search": [{"title": "Tsinghua University"}]}})
-        article = MagicMock(json=lambda: {"query": {"pages": {"1": {"extract": "Tsinghua University was established in 1911."}}}})
-        with patch("ai_core.agent.tools.requests.get", side_effect=[search, article]) as get, \
+    def test_reads_the_section_the_question_is_about_with_its_table(self, context):
+        calls = []
+        with patch("ai_core.agent.tools.requests.get", side_effect=fake_wikipedia(calls)), \
              patch("ai_core.agent.tools.check_public_url"):
-            output = run_tool("wikipedia", {"query": "Tsinghua founded"}, context)
+            output = run_tool("wikipedia", {"query": "Mercedes Sosa studio albums", "as_of": "2022"}, context)
 
-        assert output.text == "[1] Wikipedia: Tsinghua University (https://en.wikipedia.org/wiki/Tsinghua_University)\nTsinghua University was established in 1911."
-        assert all(call.kwargs["timeout"] for call in get.call_args_list)
+        assert "2005 | Corazón Libre" in output.text  # table rows stay together, citation markers gone
+        assert "2009 | Cantora 1" in output.text
+        assert "Mercedes Sosa was an Argentine singer." in output.text
+        assert output.text.startswith("[1] Wikipedia: Mercedes Sosa (revision of 2022-12-09) https://en.wikipedia.org/w/index.php?oldid=1126540422")
+        assert "Other matching articles: Cantora, un Viaje Íntimo" in output.text
+        revision = next(c for c in calls if c.get("prop") == "revisions")
+        assert revision["rvstart"] == "2022-12-31T23:59:59Z" and revision["rvdir"] == "older"
+        assert output.summary == "Read Wikipedia: Mercedes Sosa, Studio albums (as of 2022)"
 
-    @pytest.mark.parametrize("language", ["en.evil.com/x?", "localhost", "EN", ""])
-    def test_only_plain_language_codes_are_accepted(self, context, language):
+    def test_a_named_section_is_read(self, context):
+        calls = []
+        with patch("ai_core.agent.tools.requests.get", side_effect=fake_wikipedia(calls)), \
+             patch("ai_core.agent.tools.check_public_url"):
+            run_tool("wikipedia", {"query": "Mercedes Sosa", "section": "studio albums"}, context)
+
+        assert [c["section"] for c in calls if "section" in c] == ["0", "6"]
+
+    @pytest.mark.parametrize("arguments", [{"language": "en.evil.com/x?"}, {"language": "localhost"}, {"language": "EN"}, {"as_of": "last year"}])
+    def test_rejects_unsafe_or_malformed_arguments(self, context, arguments):
         with patch("ai_core.agent.tools.requests.get") as get:
-            output = run_tool("wikipedia", {"query": "x", "language": language}, context)
+            output = run_tool("wikipedia", {"query": "x", **arguments}, context)
 
-        assert "must be a Wikipedia code" in output.text
+        assert "must be" in output.text
         get.assert_not_called()
 
 
