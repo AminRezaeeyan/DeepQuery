@@ -113,7 +113,8 @@ class TestAgentThroughTheChat:
         return chat
 
     def test_the_answer_streams_steps_and_cites_the_page(self, chat):
-        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 20 s [1].")], [("text", "ReFinED takes 15 s [1].")])
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 20 s [1].")], [("text", "1. It's 15 s.")],
+                              [("text", "ReFinED takes 15 s [1].")])
         client = __import__("rest_framework.test", fromlist=["APIClient"]).APIClient()
         client.force_authenticate(chat.user)
 
@@ -238,8 +239,9 @@ class TestAnswerReview:
     def agent(self, context, model):
         return ResearchAgent(model, context, tool_definitions(web=False), max_steps=8, token_budget=100_000, review=True)
 
-    def test_the_draft_is_checked_and_only_the_revised_answer_is_sent(self, context):
-        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes about 20 s [1].")], [("text", "ReFinED takes 15 s [1].")])
+    def test_the_draft_is_critiqued_and_only_the_final_answer_is_sent(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes about 20 s [1].")],
+                              [("text", "1. The time is 15 s on p. 6, not 20 s.")], [("text", "ReFinED takes 15 s [1].")])
         messages = [{"role": "user", "content": "How fast is ReFinED?"}]
 
         events = run(self.agent(context, model), messages)
@@ -250,12 +252,17 @@ class TestAnswerReview:
             ("text", None, None),
         ]
         assert events[-1]["text"] == "ReFinED takes 15 s [1]."
-        # The model saw its draft and the request to check it.
-        assert messages[-2] == {"role": "assistant", "content": "ReFinED takes about 20 s [1]."}
-        assert messages[-1]["role"] == "user" and "Check your draft" in messages[-1]["content"]
+        # The model saw its draft, was asked for a critique, then wrote the answer from it.
+        roles = [(m["role"], m["content"][:40]) for m in messages[-4:]]
+        assert roles[0] == ("assistant", "ReFinED takes about 20 s [1].")
+        assert roles[1][0] == "user" and "list of its problems" in messages[-4 + 1]["content"]
+        assert roles[2] == ("assistant", "1. The time is 15 s on p. 6, not 20 s.")
+        assert roles[3][0] == "user" and "write the final answer" in messages[-1]["content"]
+        assert [c["tool_choice"] for c in model.calls] == ["auto", "auto", "auto", "none"]
 
-    def test_the_check_can_use_tools_before_answering(self, context):
-        model = ScriptedModel(read_page_6(), [("text", "Draft.")], read_page_6(), [("text", "Checked answer.")])
+    def test_the_critique_can_use_tools_before_the_answer(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "Draft.")], read_page_6(), [("text", "Problems: none.")],
+                              [("text", "Checked answer.")])
 
         events = run(self.agent(context, model), [{"role": "user", "content": "q"}])
 
@@ -268,11 +275,20 @@ class TestAnswerReview:
 
         assert run(self.agent(context, model), [{"role": "user", "content": "hi"}]) == [{"type": "text", "text": "Hello!"}]
 
-    def test_an_empty_check_keeps_the_draft(self, context):
-        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 15 s [1].")], [])
+    def test_an_empty_final_turn_keeps_the_draft(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "ReFinED takes 15 s [1].")], [("text", "No problems.")], [])
 
         agent = self.agent(context, model)
         events = run(agent, [{"role": "user", "content": "q"}])
 
         assert events[-1] == {"type": "text", "text": "ReFinED takes 15 s [1]."}
         assert agent.answer == "ReFinED takes 15 s [1]."
+
+    def test_out_of_steps_during_the_critique_still_ends_with_an_answer(self, context):
+        model = ScriptedModel(read_page_6(), [("text", "Draft [1].")], [("text", "Fine.")], [("text", "Final [1].")])
+        agent = ResearchAgent(model, context, tool_definitions(web=False), max_steps=2, token_budget=100_000, review=True)
+
+        events = run(agent, [{"role": "user", "content": "q"}])
+
+        assert [c["tool_choice"] for c in model.calls] == ["auto", "auto", "none", "none"]
+        assert events[-1] == {"type": "text", "text": "Final [1]."}

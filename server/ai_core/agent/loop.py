@@ -13,7 +13,7 @@ import logging
 from ai_core.exceptions import ProviderStalled
 from ai_core.services.token_service import TokenService
 
-from .prompts import REVIEW_REQUEST
+from .prompts import CRITIQUE_REQUEST, FINAL_REQUEST
 from .tools import ToolContext, describe_call, run_tool
 
 # A turn's text is held back until it's this long: models often write a short
@@ -59,12 +59,17 @@ class ResearchAgent:
 
     def run(self, messages: list[dict]):
         """Runs the loop on `messages` (extended in place, so callers can record it)."""
-        step_id, draft = 0, None
-        for turn in range(self.max_steps + 1):
-            # Out of steps or room: the last turn must answer with what it has.
-            final = turn == self.max_steps or conversation_tokens(messages) > self.token_budget
-            choice = "none" if final else (self.first_tool if turn == 0 and self.first_tool else "auto")
-            hold = self.review and draft is None and step_id > 0 and not final
+        # Phases: "research" (tools, then a draft) -> with review: "critique" (a hidden list of the
+        # draft's problems; may use tools) -> "final" (the answer, written from the critique).
+        step_id, phase, draft = 0, "research", None
+        for turn in range(self.max_steps + 3):  # room for the critique and final turns
+            out_of_room = turn >= self.max_steps or conversation_tokens(messages) > self.token_budget
+            if phase == "final" or out_of_room:
+                choice = "none"
+            else:
+                choice = self.first_tool if turn == 0 and self.first_tool else "auto"
+            review_now = self.review and phase == "research" and step_id > 0 and not out_of_room
+            hold = review_now or phase == "critique"
             for attempt in range(1, TURN_ATTEMPTS + 1):
                 try:
                     text, calls, streaming = yield from self._turn(messages, choice, hold)
@@ -76,24 +81,33 @@ class ResearchAgent:
                     if self._streamed:
                         yield {"type": "reset"}  # drop the partial text before the retry streams
 
-            if self._pending:  # the review turn produced tool calls and no text
+            if calls and self._pending:  # the critique turn went on to use tools
                 yield self._pending
                 self._pending = None
 
-            if not calls and hold and text:
-                draft = text
+            if not calls and review_now and text:
+                draft, phase = text, "critique"
                 step_id += 1
-                review = {"type": "step", "id": step_id, "tool": "check_answer", "arguments": {}, "summary": "Checking the answer"}
-                yield {**review, "status": "running"}
-                self._pending = {**review, "status": "done", "summary": "Checked the answer", "output": ""}
+                check = {"type": "step", "id": step_id, "tool": "check_answer", "arguments": {}, "summary": "Checking the answer"}
+                yield {**check, "status": "running"}
+                self._pending = {**check, "status": "done", "summary": "Checked the answer", "output": ""}
                 messages.append({"role": "assistant", "content": draft})
-                messages.append({"role": "user", "content": REVIEW_REQUEST})
+                messages.append({"role": "user", "content": CRITIQUE_REQUEST})
+                continue
+
+            if not calls and phase == "critique":
+                phase = "final"
+                messages.append({"role": "assistant", "content": text or "(no problems found)"})
+                messages.append({"role": "user", "content": FINAL_REQUEST})
                 continue
 
             if not calls:
-                if not text and draft:  # the review came back empty: keep the draft
+                if not text and draft:  # the final turn came back empty: keep the draft
                     text = draft
-                if text and not streaming:
+                if self._pending:
+                    yield self._pending
+                    self._pending = None
+                if text and not self._streamed:
                     yield {"type": "text", "text": text}
                 self.answer = text
                 return
