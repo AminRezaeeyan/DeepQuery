@@ -128,7 +128,7 @@ SPECTACULAR_SETTINGS = {
 # --- EXTERNAL SERVICES ---
 GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
 # Web search via ddgs (no key). Backends are tried in order; drop ones blocked on your network.
-WEB_SEARCH_BACKENDS = config("WEB_SEARCH_BACKENDS", default="duckduckgo,bing,yandex")
+WEB_SEARCH_BACKENDS = config("WEB_SEARCH_BACKENDS", default="duckduckgo,yahoo")
 WEB_SEARCH_TIMEOUT = config("WEB_SEARCH_TIMEOUT", default=10, cast=int)
 
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
@@ -155,6 +155,10 @@ LOGGING = {
 # Size of the passages documents are split into for search, in tokens.
 RAG_CHUNK_TOKENS = config("RAG_CHUNK_TOKENS", default=400, cast=int)
 RAG_CHUNK_OVERLAP_TOKENS = config("RAG_CHUNK_OVERLAP_TOKENS", default=60, cast=int)
+
+# --- RESEARCH AGENT ---
+# Tool-calling turns before the agent must answer with what it has.
+AGENT_MAX_STEPS = config("AGENT_MAX_STEPS", default=8, cast=int)
 
 # --- UPLOADS ---
 # Uploads are stored under server/ (chat_images/, user_documents/) and never

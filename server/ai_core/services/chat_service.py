@@ -1,4 +1,12 @@
 import re
+from functools import cached_property
+
+from django.conf import settings
+
+from ai_core.agent.loop import ResearchAgent
+from ai_core.agent.prompts import AGENT_INSTRUCTIONS, documents_overview, has_documents
+from ai_core.agent.tools import ToolContext, tool_definitions
+from ai_core.llm_providers.openai_provider import with_image
 from ai_core.services.llm_service import LLMService
 from ai_core.services.token_service import TokenService
 from ai_core.exceptions import ContextLimitExceededError
@@ -17,12 +25,24 @@ class ChatGenerationService:
         self.provider_config = self.llm.provider_config
         self.prompt_builder = PromptBuilder(self.provider_config.max_context_tokens)
         self.memory = LongTermMemoryService(user_id=user_id, enabled= not is_temporary)
-        self.document_rag = DocumentRAGService(chat_id=chat_id)
-        self.web_service = WebKnowledgeService(chat_id, user_id)
         self.strict_quote_mode = strict_quote_mode
         self.audience_type = audience_type
         self.reasoning_depth = reasoning_depth
         self.challenge_mode = challenge_mode
+
+    # The single-pass pipeline's retrieval services; the agent retrieves through tools.
+    @cached_property
+    def document_rag(self):
+        return DocumentRAGService(chat_id=self.chat_id)
+
+    @cached_property
+    def web_service(self):
+        return WebKnowledgeService(self.chat_id, self.user_id)
+
+    @property
+    def uses_agent(self) -> bool:
+        """Providers with native tool calling answer through the research agent."""
+        return getattr(self.llm.provider, "supports_tools", False)
 
     def _get_system_prompt(self):
         depth_instruction = {
@@ -61,16 +81,14 @@ class ChatGenerationService:
         return prompt
 
         
-    def stream_answer(self, user_prompt: str, image_bytes: bytes = None, mime_type: str = None, history_before=None):
-        prepared = self.prepare(user_prompt, history_before=history_before)
-        yield from self.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type)
-
     def prepare(self, user_prompt: str, history_before=None):
         """
-        Everything before the first token: budget check, retrieval and prompt
-        building. Runs eagerly so its errors (e.g. ContextLimitExceededError)
-        reach the view before the response starts streaming.
+        Everything before the first token: budget check and prompt building (and,
+        without the agent, retrieval). Runs eagerly so its errors (e.g.
+        ContextLimitExceededError) reach the view before the response starts streaming.
         """
+        if self.uses_agent:
+            return self._prepare_agent(user_prompt, history_before)
         system_prompt = self._get_system_prompt()
         budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
 
@@ -140,7 +158,66 @@ class ChatGenerationService:
         if not self.is_temporary:
             self.memory.store_from_message(self.chat_id, user_prompt)
 
-        return {"messages": messages, "citation_map": citation_map}
+        return {"agent": False, "messages": messages, "citation_map": citation_map}
+
+    def _prepare_agent(self, user_prompt, history_before):
+        system_prompt = "\n\n".join([
+            self._get_system_prompt(),
+            AGENT_INSTRUCTIONS,
+            documents_overview(self.chat_id, self.user_id),
+        ])
+        budgets = self.prompt_builder.allocate(system_prompt, user_prompt)
+
+        memory_block = ""
+        if not self.is_temporary:
+            memory_block = self.memory.build_memory_context(
+                query=user_prompt, token_limit=budgets["long_term_memory"], max_candidates=20,
+            )
+            self.memory.store_from_message(self.chat_id, user_prompt)
+
+        history = ShortTermMemory(
+            chat_id=self.chat_id, token_limit=budgets["short_term_memory"], before=history_before,
+        ).collect()
+
+        messages = self.prompt_builder.build_messages(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            short_term_memory=history,
+            long_term_memory=memory_block,
+        )
+        return {
+            "agent": True,
+            "messages": messages,
+            "context": ToolContext(chat_id=self.chat_id, user_id=self.user_id),
+            "citation_map": {},
+        }
+
+    def answer_events(self, prepared, image_bytes: bytes = None, mime_type: str = None):
+        """
+        The answer as stream events (see ai_core.agent.loop), from the research
+        agent or, for providers without tool calling, the single-pass pipeline.
+        """
+        if not prepared["agent"]:
+            for token in self.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type):
+                yield {"type": "text", "text": token}
+            return
+
+        prepared["messages"] = with_image(prepared["messages"], image_bytes, mime_type)
+        context = prepared["context"]
+        agent = ResearchAgent(
+            self.llm.provider,
+            context,
+            tool_definitions(web=self.enable_web_search),
+            max_steps=settings.AGENT_MAX_STEPS,
+            token_budget=TokenService.get_available_budget(self.provider_config.max_context_tokens),
+            first_tool="search_documents" if has_documents(self.chat_id, self.user_id) else None,
+        )
+        yield from agent.run(prepared["messages"])
+
+        prepared["citation_map"] = context.sources.as_citation_map()
+        references = references_text(agent.answer, prepared["citation_map"])
+        if references:
+            yield {"type": "text", "text": references}
 
     def stream_prepared(self, prepared, image_bytes: bytes = None, mime_type: str = None):
         citation_map = prepared["citation_map"]
@@ -151,15 +228,21 @@ class ChatGenerationService:
             answer += token
             yield token
 
-        # 8. Append the sources the answer cites (not every passage retrieved),
-        # keeping their numbers so [n] in the text still matches.
-        cited = {int(n) for n in re.findall(r"\[(\d{1,3})\]", answer)}
-        references = sorted((c for c in citation_map.values() if c["cite_id"] in cited), key=lambda c: c["cite_id"])
+        references = references_text(answer, citation_map)
         if references:
-            yield "\n\n**References:**\n"
-            for cit in references:
-                yield f"[{cit['cite_id']}] {cit['label']}\n"
-#
+            yield references
+
+
+def references_text(answer: str, citation_map: dict) -> str:
+    """
+    The sources the answer cites (not every passage retrieved), under the
+    numbers used in the text, as the "**References:**" block clients read.
+    """
+    cited = {int(n) for n in re.findall(r"\[(\d{1,3})\]", answer)}
+    references = sorted((c for c in citation_map.values() if c["cite_id"] in cited), key=lambda c: c["cite_id"])
+    if not references:
+        return ""
+    return "\n\n**References:**\n" + "".join(f"[{c['cite_id']}] {c['label']}\n" for c in references)
 
 def untrusted_block(tag: str, text: str) -> str:
     # Neutralise closing tags inside the data so it can't end the block early.

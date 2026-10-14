@@ -13,27 +13,45 @@ function streamOf(...chunks: string[]) {
   );
 }
 
+const line = (event: object) => JSON.stringify(event) + "\n";
+
 describe("readStream", () => {
-  it("returns the full answer", async () => {
+  it("joins text events, even when lines are split across network chunks", async () => {
     const seen: string[] = [];
-    expect(await readStream(streamOf("Hel", "lo"), (t) => seen.push(t))).toBe("Hello");
+    const body = line({ type: "text", text: "Hel" }) + line({ type: "text", text: "lo" });
+
+    const full = await readStream(streamOf(body.slice(0, 10), body.slice(10)), { onText: (t) => seen.push(t) });
+
+    expect(full).toBe("Hello");
     expect(seen.at(-1)).toBe("Hello");
   });
 
-  it("turns a mid-stream error into an ApiError and keeps the partial text", async () => {
+  it("drops a preamble on reset and reports steps", async () => {
+    const steps: unknown[] = [];
+    const full = await readStream(
+      streamOf(
+        line({ type: "text", text: "Let me look." }),
+        line({ type: "reset" }),
+        line({ type: "step", id: 1, tool: "read_document", status: "running", summary: "Reading refined.pdf, p. 6" }),
+        line({ type: "step", id: 1, tool: "read_document", status: "done", summary: "Read refined.pdf, p. 6" }),
+        line({ type: "text", text: "ReFinED takes 15 s [1]." }),
+      ),
+      { onText: () => undefined, onStep: (s) => steps.push(s.status) },
+    );
+
+    expect(full).toBe("ReFinED takes 15 s [1].");
+    expect(steps).toEqual(["running", "done"]);
+  });
+
+  it("turns an error event into an ApiError and keeps the partial text", async () => {
     const seen: string[] = [];
-    const error = await readStream(streamOf("Partial ", '\u001e{"detail": "The model stopped."}'), (t) => seen.push(t)).catch((e) => e);
+    const error = await readStream(streamOf(line({ type: "text", text: "Partial " }), line({ type: "error", detail: "The model stopped." })), {
+      onText: (t) => seen.push(t),
+    }).catch((e) => e);
 
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).message).toBe("The model stopped.");
     expect(seen.at(-1)).toBe("Partial ");
-  });
-
-  it("never shows the marker even when it arrives split from its JSON", async () => {
-    const seen: string[] = [];
-    await readStream(streamOf("Partial \u001e", '{"detail": "x"}'), (t) => seen.push(t)).catch(() => undefined);
-
-    expect(seen.every((t) => !t.includes("\u001e"))).toBe(true);
   });
 });
 

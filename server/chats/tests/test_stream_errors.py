@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 from ai_core.exceptions import ContextLimitExceededError
 from chats.models import Message
-from chats.services.chat_service import STREAM_ERROR_MARKER
 
 
 @pytest.fixture
@@ -20,7 +19,7 @@ def post_message(client, chat, content="question"):
 
 
 def failing_stream(*args, **kwargs):
-    yield "Partial "
+    yield {"type": "text", "text": "Partial "}
     raise RuntimeError("provider exploded")
 
 
@@ -36,21 +35,21 @@ class TestStreamErrors:
         assert "too large" in json.dumps(response.json())
 
     def test_failure_mid_stream_ends_with_a_detectable_error(self, auth_client, chat, generation):
-        generation.stream_prepared.side_effect = failing_stream
+        generation.answer_events.side_effect = failing_stream
 
         response = post_message(auth_client, chat)
-        body = b"".join(response.streaming_content).decode()
+        events = [json.loads(line) for line in b"".join(response.streaming_content).decode().splitlines()]
 
-        text, _, error = body.partition(STREAM_ERROR_MARKER)
-        assert text == "Partial "
-        assert json.loads(error)["detail"]
-        assert "provider exploded" not in error
+        assert response["Content-Type"] == "application/x-ndjson"
+        assert events[0] == {"type": "text", "text": "Partial "}
+        assert events[-1]["type"] == "error" and events[-1]["detail"]
+        assert "provider exploded" not in events[-1]["detail"]
         assert not Message.objects.filter(chat=chat, role=Message.Role.ASSISTANT).exists()
 
     def test_successful_stream_has_no_error_marker(self, auth_client, chat, generation):
-        generation.stream_prepared.return_value = iter(["All ", "good"])
+        generation.answer_events.return_value = iter([{"type": "text", "text": "All "}, {"type": "text", "text": "good"}])
 
-        body = b"".join(post_message(auth_client, chat).streaming_content).decode()
+        lines = b"".join(post_message(auth_client, chat).streaming_content).decode().splitlines()
 
-        assert body == "All good"
+        assert [json.loads(line) for line in lines] == [{"type": "text", "text": "All "}, {"type": "text", "text": "good"}]
         assert Message.objects.get(chat=chat, role=Message.Role.ASSISTANT).content == "All good"

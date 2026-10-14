@@ -46,9 +46,9 @@ class MessageSerializer(AnswerOptionsSerializer, serializers.ModelSerializer):
         fields = [
             'uuid', 'role', 'content', 'image', 'enable_web_search', 
             'strict_quote_mode', 'challenge_mode', 'audience_type', 
-            'reasoning_depth', 'created_at'
+            'reasoning_depth', 'trace', 'created_at'
         ]
-        read_only_fields = ['uuid', 'role', 'created_at']
+        read_only_fields = ['uuid', 'role', 'trace', 'created_at']
 
 
 

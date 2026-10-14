@@ -56,7 +56,8 @@ class LLMProviderBase:
         `messages` use the OpenAI chat shape: assistant turns may carry
         "tool_calls", and tool results are {"role": "tool", "tool_call_id", "content"}.
         `tools` are {"name", "description", "parameters": JSON schema}.
-        `tool_choice` is "auto" or "none" (answer now, no more tools).
+        `tool_choice` is "auto", "none" (answer now, no more tools) or a tool's
+        name (call that tool this turn).
         """
         raise NotImplementedError
 

@@ -29,7 +29,7 @@ function controllableStream() {
   return {
     response: new Response(body),
     finish: (text: string) => {
-      controller.enqueue(new TextEncoder().encode(text));
+      controller.enqueue(new TextEncoder().encode(JSON.stringify({ type: "text", text }) + "\n"));
       controller.close();
     },
   };
@@ -101,9 +101,11 @@ describe("failed answers", () => {
   const saved = { uuid: "q1", role: "user" as const, content: "Question", image: null, created_at: "2026-01-01T00:00:00Z" };
 
   it("stay in the chat with the error, and retry regenerates a saved question", async () => {
-    api.sendMessage.mockResolvedValue(new Response('Partial \u001e{"detail": "The model stopped."}'));
+    api.sendMessage.mockResolvedValue(
+      new Response(JSON.stringify({ type: "text", text: "Partial " }) + "\n" + JSON.stringify({ type: "error", detail: "The model stopped." }) + "\n"),
+    );
     api.messages.mockResolvedValue({ next: null, previous: null, results: [saved] });
-    api.editMessage.mockResolvedValue(new Response("Fresh answer"));
+    api.editMessage.mockResolvedValue(new Response(JSON.stringify({ type: "text", text: "Fresh answer" }) + "\n"));
     const d = deps();
     const { result } = renderHook(() => useChatSession({ ...d, chatId: CHAT.uuid }));
     await waitFor(() => expect(result.current.loading).toBe(false)); // the chat has loaded before the user sends
@@ -136,10 +138,48 @@ describe("failed answers", () => {
     expect(failed.error).toContain("daily message limit");
     expect(result.current.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
 
-    api.sendMessage.mockResolvedValue(new Response("Answer"));
+    api.sendMessage.mockResolvedValue(new Response(JSON.stringify({ type: "text", text: "Answer" }) + "\n"));
     await act(() => result.current.retry(failed));
 
     expect(api.sendMessage).toHaveBeenCalledTimes(2);
     expect(api.editMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("research steps", () => {
+  it("update in place as a step goes from running to done", async () => {
+    const lines = [
+      { type: "step", id: 1, tool: "search_documents", status: "running", summary: 'Searching documents for "speed"' },
+      { type: "step", id: 1, tool: "search_documents", status: "done", summary: 'Searched documents for "speed" · 6 passages' },
+      { type: "text", text: "Answer [1]." },
+    ];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    api.sendMessage.mockImplementation(async () => {
+      const body = new ReadableStream<Uint8Array>({
+        async start(c) {
+          lines.forEach((l) => c.enqueue(new TextEncoder().encode(JSON.stringify(l) + "\n")));
+          await gate; // keep the stream open so the live message can be inspected
+          c.close();
+        },
+      });
+      return new Response(body);
+    });
+    api.messages.mockResolvedValue({ next: null, previous: null, results: [] });
+    const d = { ensureChat: async () => CHAT, onChatTouched: vi.fn(), onError: vi.fn() };
+    const { result } = renderHook(() => useChatSession({ ...d, chatId: CHAT.uuid }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    let sending!: Promise<void>;
+    act(() => {
+      sending = result.current.send("Question", OPTIONS, null);
+    });
+    await waitFor(() => expect(result.current.messages.at(-1)?.content).toBe("Answer [1]."));
+
+    expect(result.current.messages.at(-1)?.trace).toEqual([lines[1]]);
+    await act(async () => {
+      release();
+      await sending;
+    });
   });
 });

@@ -11,12 +11,23 @@ export type Chat = {
 
 export type Role = "user" | "assistant" | "system";
 
+/** One research step of the agent: a tool it ran and what came of it. */
+export type AgentStep = {
+  id?: number;
+  tool: string;
+  arguments?: Record<string, unknown>;
+  status?: "running" | "done";
+  summary: string;
+};
+
 export type Message = {
   uuid: string;
   role: Role;
   content: string;
   image: string | null;
   created_at: string;
+  /** The agent's research steps, for assistant messages. */
+  trace?: AgentStep[];
 };
 
 export type Page<T> = { next: string | null; previous: string | null; results: T[] };

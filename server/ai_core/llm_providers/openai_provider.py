@@ -42,7 +42,7 @@ class OpenAIProvider(LLMProviderBase):
                 model=self.model,
                 messages=messages,
                 tools=[{"type": "function", "function": tool} for tool in tools],
-                tool_choice=tool_choice,
+                tool_choice=tool_choice if tool_choice in ("auto", "none", "required") else {"type": "function", "function": {"name": tool_choice}},
                 stream=True,
             )
 

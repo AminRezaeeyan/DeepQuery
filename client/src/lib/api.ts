@@ -1,4 +1,5 @@
 import type {
+  AgentStep,
   Chat,
   Doc,
   Message,
@@ -203,33 +204,58 @@ export const api = {
     request(`/api/messages/${uuid}/`, { method: "PATCH", body: body({ content, ...answerOptions(opts) }), signal }),
 };
 
-// The server ends a stream that failed midway with this character and a
-// JSON error body (see chats/services/chat_service.py).
-const STREAM_ERROR_MARKER = "\u001e";
+type StreamEvent =
+  | { type: "text"; text: string }
+  | { type: "reset" }
+  | ({ type: "step" } & AgentStep)
+  | { type: "error"; detail?: string };
 
-export async function readStream(res: Response, onText: (full: string) => void): Promise<string> {
+type StreamHandlers = {
+  onText: (full: string) => void;
+  onStep?: (step: AgentStep) => void;
+};
+
+/**
+ * Reads an answer stream: JSON lines of events (see chats/services/chat_service.py).
+ * Text accumulates, "reset" drops a preamble the agent wrote before using tools,
+ * steps go to onStep, and an error event throws, keeping the text so far.
+ */
+export async function readStream(res: Response, handlers: StreamHandlers): Promise<string> {
   if (!res.body) return "";
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
+  let buffer = "";
   let full = "";
+
+  const handle = (line: string) => {
+    if (!line.trim()) return;
+    let event: StreamEvent;
+    try {
+      event = JSON.parse(line) as StreamEvent;
+    } catch {
+      return; // a malformed line shouldn't lose the whole answer
+    }
+    if (event.type === "text") {
+      full += event.text;
+      handlers.onText(full);
+    } else if (event.type === "reset") {
+      full = "";
+      handlers.onText(full);
+    } else if (event.type === "step") {
+      handlers.onStep?.(event);
+    } else if (event.type === "error") {
+      throw new ApiError(502, event.detail || "The answer stopped before it finished. Try again.");
+    }
+  };
+
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
-    full += decoder.decode(value, { stream: true });
-    const marker = full.indexOf(STREAM_ERROR_MARKER);
-    if (marker !== -1) {
-      onText(full.slice(0, marker));
-      let detail = "The answer stopped before it finished. Try again.";
-      try {
-        detail = (JSON.parse(full.slice(marker + 1)) as { detail?: string }).detail ?? detail;
-      } catch {
-        /* the error body may be cut off; keep the generic message */
-      }
-      throw new ApiError(502, detail);
-    }
-    onText(full);
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    lines.forEach(handle);
   }
-  full += decoder.decode();
-  onText(full);
+  handle(buffer + decoder.decode());
   return full;
 }

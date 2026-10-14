@@ -14,7 +14,6 @@ from ai_core.llm_providers.factory import ProviderFactory
 from ai_core.models import EmbeddingChunk
 from ai_core.services.chat_service import ChatGenerationService
 from chats.models import Chat
-from chats.services.chat_service import STREAM_ERROR_MARKER
 from documents.models import Document
 from documents.tasks import extract_and_index_document
 
@@ -124,7 +123,7 @@ class QuestionRunner:
             image_bytes = (self.sources_dir / question.image).read_bytes()
             mime_type = mimetypes.guess_type(question.image)[0]
 
-        answer, error, prepared = "", None, None
+        answer, error, prepared, steps = "", None, None, []
         started = time.monotonic()
         first_token_at = None
         try:
@@ -133,17 +132,25 @@ class QuestionRunner:
             )
             prepared = service.prepare(question.question.strip())
             record["timings"]["prepare_s"] = round(time.monotonic() - started, 2)
-            for token in service.stream_prepared(prepared, image_bytes=image_bytes, mime_type=mime_type):
-                if first_token_at is None:
-                    first_token_at = time.monotonic()
-                answer += token
+            for event in service.answer_events(prepared, image_bytes=image_bytes, mime_type=mime_type):
+                if event["type"] == "text":
+                    if first_token_at is None:
+                        first_token_at = time.monotonic()
+                    answer += event["text"]
+                elif event["type"] == "reset":
+                    answer = ""
+                elif event["type"] == "step" and event["status"] == "done":
+                    steps.append({
+                        "tool": event["tool"],
+                        "arguments": event["arguments"],
+                        "summary": event["summary"],
+                        "output": event["output"],
+                        "at_s": round(time.monotonic() - started, 2),
+                    })
         except Exception as e:  # recorded in the results; the run continues with the next question
             logger.warning("Question %s failed: %s", question.id, e)
             error = f"{type(e).__name__}: {e}"
 
-        if STREAM_ERROR_MARKER in answer:
-            answer, _, tail = answer.partition(STREAM_ERROR_MARKER)
-            error = error or tail
         finished = time.monotonic()
         record["timings"]["first_token_s"] = round(first_token_at - started, 2) if first_token_at else None
         record["timings"]["answer_s"] = round(finished - started, 2)
@@ -153,7 +160,9 @@ class QuestionRunner:
         record["agent"] = {
             "answer": answer,
             "error": error,
-            "prompt_messages": (prepared or {}).get("messages", []),
+            "mode": "agent" if (prepared or {}).get("agent") else "single_pass",
+            "steps": steps,
+            "prompt_messages": without_images((prepared or {}).get("messages", [])),
             "retrieved_sources": list(dict.fromkeys(c["url"] or c["filename"] for c in sorted(citation_map.values(), key=lambda c: c["cite_id"]))),
             "retrieved_passages": [c["label"] for c in sorted(citation_map.values(), key=lambda c: c["cite_id"])],
             "web_pages_fetched": web_documents,
@@ -196,4 +205,18 @@ class QuestionRunner:
 
 
 def grading_context(agent: dict) -> str:
+    """What the model actually read: the tool outputs, or the single-pass <sources> block."""
+    if agent.get("steps"):
+        return "\n\n".join(step["output"] for step in agent["steps"])
     return sources_block(agent["prompt_messages"])
+
+
+def without_images(messages: list[dict]) -> list[dict]:
+    """The conversation for the results file, with attached images replaced by a note."""
+    cleaned = []
+    for m in messages:
+        content = m.get("content")
+        if isinstance(content, list):
+            content = [p if p.get("type") != "image_url" else {"type": "image_url", "image_url": "(image omitted)"} for p in content]
+        cleaned.append({**m, "content": content})
+    return cleaned

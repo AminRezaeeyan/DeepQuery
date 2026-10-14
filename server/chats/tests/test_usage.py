@@ -27,7 +27,7 @@ def post(client, chat):
 
 
 def failing_stream(*args, **kwargs):
-    yield "Partial "
+    yield {"type": "text", "text": "Partial "}
     raise RuntimeError("provider down")
 
 
@@ -35,21 +35,21 @@ def failing_stream(*args, **kwargs):
 class TestUsageIsCountedOnlyForAnswers:
 
     def test_a_finished_answer_counts_one_message(self, auth_client, user, chat, generation):
-        generation.stream_prepared.return_value = iter(["ok"])
+        generation.answer_events.return_value = iter([{"type": "text", "text": "ok"}])
 
         b"".join(post(auth_client, chat).streaming_content)
 
         assert messages_used(user) == 1
 
     def test_a_failed_stream_is_not_counted(self, auth_client, user, chat, generation):
-        generation.stream_prepared.side_effect = failing_stream
+        generation.answer_events.side_effect = failing_stream
 
         b"".join(post(auth_client, chat).streaming_content)
 
         assert messages_used(user) == 0
 
     def test_a_disconnect_mid_answer_is_not_counted(self, chat, generation):
-        generation.stream_prepared.return_value = iter(["first ", "second"])
+        generation.answer_events.return_value = iter([{"type": "text", "text": "first "}, {"type": "text", "text": "second"}])
         question = Message.objects.create(chat=chat, role=Message.Role.USER, content="question")
         refund = Mock()
 

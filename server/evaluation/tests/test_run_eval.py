@@ -42,7 +42,7 @@ class FakeJudge:
 
 
 def fake_stream(prepared, image_bytes=None, mime_type=None):
-    yield "ReFinED is about 61 times faster [1].\n\n**References:**\n[1] notes.md\n"
+    yield {"type": "text", "text": "ReFinED is about 61 times faster [1].\n\n**References:**\n[1] notes.md\n"}
 
 
 @pytest.mark.django_db
@@ -54,10 +54,11 @@ def test_run_eval_saves_every_answer_and_grade(setup):
          patch("evaluation.runner.ChatGenerationService") as service_cls, \
          patch("evaluation.runner.provider_instance", return_value=FakeJudge()):
         service_cls.return_value.prepare.return_value = {
+            "agent": False,
             "messages": [{"role": "system", "content": "RULES"}, {"role": "user", "content": "<sources>\nnotes text\n</sources>\n\nHow fast?"}],
             "citation_map": {(1, ""): {"cite_id": 1, "url": None, "filename": "notes.md", "location": "", "label": "notes.md"}},
         }
-        service_cls.return_value.stream_prepared.side_effect = fake_stream
+        service_cls.return_value.answer_events.side_effect = fake_stream
 
         call_command(
             "run_eval",
@@ -103,8 +104,8 @@ def run(tmp_path, agent, judge):
          patch.object(OpenAIEmbeddingProvider, "count_tokens", return_value=5), \
          patch("evaluation.runner.ChatGenerationService") as service_cls, \
          patch("evaluation.runner.provider_instance", return_value=judge):
-        service_cls.return_value.prepare.return_value = {"messages": [], "citation_map": {}}
-        service_cls.return_value.stream_prepared.side_effect = fake_stream
+        service_cls.return_value.prepare.return_value = {"agent": False, "messages": [], "citation_map": {}}
+        service_cls.return_value.answer_events.side_effect = fake_stream
         call_command(
             "run_eval",
             questions=str(tmp_path / "questions.yaml"),

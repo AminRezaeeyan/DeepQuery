@@ -39,8 +39,25 @@ def register_tool(cls):
     return cls
 
 
-def tool_definitions() -> list[dict]:
-    return [{"name": t.name, "description": t.description, "parameters": t.parameters} for t in TOOL_REGISTRY.values()]
+WEB_TOOLS = {"web_search", "fetch_page", "wikipedia"}
+
+
+def tool_definitions(web: bool = True) -> list[dict]:
+    """The tools offered to the model; web tools only when the user turned web search on."""
+    return [
+        {"name": t.name, "description": t.description, "parameters": t.parameters}
+        for t in TOOL_REGISTRY.values()
+        if web or t.name not in WEB_TOOLS
+    ]
+
+
+def describe_call(name: str, arguments: dict) -> str:
+    """What the agent is doing, for the UI while a tool runs."""
+    tool = TOOL_REGISTRY.get(name)
+    try:
+        return tool.describe(**arguments) if tool else f"Calling {name}"
+    except TypeError:
+        return f"Calling {name}"
 
 
 def run_tool(name: str, arguments: dict, context: ToolContext) -> ToolOutput:
@@ -87,6 +104,10 @@ class SearchDocuments:
         "required": ["query"],
     }
 
+    @staticmethod
+    def describe(query="", **_):
+        return f'Searching documents for "{query}"'
+
     def run(self, context, query, limit=6):
         if not chat_documents(context).exists():
             return ToolOutput("No documents are attached to this chat.", f'Searched documents for "{query}" (none attached)')
@@ -116,6 +137,12 @@ class ReadDocument:
         },
         "required": ["name"],
     }
+
+    @staticmethod
+    def describe(name="", part=None, **_):
+        if part and re.fullmatch(r"\d+(\s*-\s*\d+)?", str(part).strip()):
+            part = f"p. {part}"
+        return f"Reading {name}" + (f", {part}" if part else "")
 
     def run(self, context, name, part=None):
         docs = list(chat_documents(context))
@@ -168,6 +195,10 @@ class WebSearch:
         "required": ["query"],
     }
 
+    @staticmethod
+    def describe(query="", **_):
+        return f'Searching the web for "{query}"'
+
     def run(self, context, query):
         results = WebSearchService().search(query, max_results=5)
         if not results:
@@ -195,6 +226,10 @@ class FetchPage:
         "required": ["url"],
     }
 
+    @staticmethod
+    def describe(url="", **_):
+        return f"Reading {url}"
+
     def run(self, context, url, query=None):
         text = WebPageFetcher().fetch(url)
         if not text:
@@ -216,6 +251,10 @@ class Wikipedia:
         },
         "required": ["query"],
     }
+
+    @staticmethod
+    def describe(query="", **_):
+        return f'Looking up "{query}" on Wikipedia'
 
     def run(self, context, query, language="en"):
         # The language becomes part of the host name, so allow only a plain code.
