@@ -183,6 +183,12 @@ export const api = {
       body: body({ plan_id: planId }),
     }),
 
+  /** Confirms a ZarinPal payment from the parameters it adds to the return URL. */
+  verifyPayment: (authority: string, status: string) =>
+    json<{ message: string; ref_id: string; plan: string }>(
+      `/api/subscriptions/payment/verify/?Authority=${encodeURIComponent(authority)}&Status=${encodeURIComponent(status)}`,
+    ),
+
   /** Sends a message and returns the streamed plain-text answer. */
   sendMessage: (chat: string, content: string, opts: ResearchOptions, image: File | null, signal: AbortSignal) => {
     const form = new FormData();
