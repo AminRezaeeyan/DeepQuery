@@ -2,10 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, readStream } from "../../lib/api";
 import type { Chat, Message, ResearchOptions } from "../../lib/types";
 
+/** What was asked, kept on a failed answer so it can be retried. */
+type AnswerRequest = { content: string; opts: ResearchOptions; image: File | null };
+
 export type UIMessage = Message & {
   streaming?: boolean;
   stopped?: boolean;
   localImage?: string;
+  /** Set on an answer that failed; shown in the chat with a Retry button. */
+  error?: string;
+  /** The question behind a failed answer, and whether the server saved it. */
+  failedRequest?: AnswerRequest & { saved: boolean };
 };
 
 type Deps = {
@@ -80,7 +87,13 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
 
   /** Streams the response of `start` into the assistant message, then re-syncs ids with the server. */
   const consume = useCallback(
-    async (uuid: string, assistantId: string, start: (signal: AbortSignal) => Promise<Response>, firstMessage: boolean) => {
+    async (
+      uuid: string,
+      assistantId: string,
+      start: (signal: AbortSignal) => Promise<Response>,
+      firstMessage: boolean,
+      request: AnswerRequest,
+    ) => {
       const controller = new AbortController();
       abortRef.current = controller;
       setBusy(true);
@@ -114,8 +127,28 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
           }
           onChatTouched(uuid, firstMessage);
         } else {
-          setMessages((m) => m.filter((x) => x.uuid !== assistantId || x.content));
-          onError(e instanceof ApiError ? e.message : "The answer could not be generated. Try again.");
+          // Show the failure where the answer would have been. Re-sync first
+          // to learn whether the server saved the question, which decides how
+          // Retry works (regenerate it, or send it again).
+          const error = e instanceof ApiError ? e.message : "The answer could not be generated.";
+          const synced = await fetchLatest(uuid).catch(() => null);
+          setMessages((current) => {
+            const local = current.filter((x) => x.uuid.startsWith("local-") && x.uuid !== assistantId);
+            const last = synced?.list.at(-1);
+            const saved = Boolean(last && last.role === "user" && last.content === request.content);
+            const failed: UIMessage = {
+              uuid: assistantId,
+              role: "assistant",
+              content: streamed,
+              image: null,
+              created_at: new Date().toISOString(),
+              error,
+              failedRequest: { ...request, saved },
+            };
+            if (!synced) return current.map((x) => (x.uuid === assistantId ? failed : x));
+            return [...synced.list, ...(saved ? [] : local), failed];
+          });
+          if (synced) setOlderCursor(synced.next);
         }
       } finally {
         setMessages((m) => m.map((x) => (x.uuid === assistantId ? { ...x, streaming: false } : x)));
@@ -147,7 +180,11 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
         { uuid: assistantId, role: "assistant", content: "", image: null, created_at: now, streaming: true },
       ]);
 
-      await consume(chat.uuid, assistantId, (signal) => api.sendMessage(chat.uuid, content, opts, image, signal), firstMessage);
+      await consume(chat.uuid, assistantId, (signal) => api.sendMessage(chat.uuid, content, opts, image, signal), firstMessage, {
+        content,
+        opts,
+        image,
+      });
     },
     [busy, chatId, consume, ensureChat, messages.length, onError],
   );
@@ -164,12 +201,33 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
           { uuid: assistantId, role: "assistant", content: "", image: null, created_at: new Date().toISOString(), streaming: true },
         ];
       });
-      await consume(chatId, assistantId, (signal) => api.editMessage(message.uuid, content, opts, signal), false);
+      await consume(chatId, assistantId, (signal) => api.editMessage(message.uuid, content, opts, signal), false, {
+        content,
+        opts,
+        image: null,
+      });
     },
     [busy, chatId, consume],
   );
 
+  /** Tries a failed answer again without duplicating the question. */
+  const retry = useCallback(
+    async (failed: UIMessage) => {
+      const request = failed.failedRequest;
+      if (busy || !request) return;
+      if (request.saved) {
+        const question = [...messages].reverse().find((m) => m.role === "user");
+        if (question) await edit(question, request.content, request.opts);
+        return;
+      }
+      // The server never stored the question: drop the local copy and send it again.
+      setMessages((m) => m.filter((x) => !x.uuid.startsWith("local-")));
+      await send(request.content, request.opts, request.image);
+    },
+    [busy, edit, messages, send],
+  );
+
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { messages, loading, loadingOlder, hasOlder: Boolean(olderCursor), loadOlder, send, edit, stop, busy };
+  return { messages, loading, loadingOlder, hasOlder: Boolean(olderCursor), loadOlder, send, edit, retry, stop, busy };
 }

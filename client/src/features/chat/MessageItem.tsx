@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
+import { Check, CircleAlert, Copy, FileText, Globe, Pencil, RotateCcw } from "lucide-react";
 import { Markdown } from "../../components/Markdown";
 import { api } from "../../lib/api";
 import { hostOf, splitAnswer, timeOf, type Reference } from "../../lib/format";
@@ -103,8 +103,23 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
             <span>{status}</span>
           </div>
         ) : (
-          <div className={`prose ${message.streaming ? "is-streaming" : ""}`} dir="auto">
-            <Markdown text={body} references={references} onCite={showSource} />
+          body && (
+            <div className={`prose ${message.streaming ? "is-streaming" : ""}`} dir="auto">
+              <Markdown text={body} references={references} onCite={showSource} />
+            </div>
+          )
+        )}
+
+        {message.error && (
+          <div className="msg-error" role="alert">
+            <CircleAlert size={16} />
+            <span>{message.error}</span>
+            {onRetry && (
+              <button className="btn btn--ghost btn--sm" onClick={onRetry}>
+                <RotateCcw size={14} />
+                Retry
+              </button>
+            )}
           </div>
         )}
 
@@ -112,7 +127,7 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
 
         {message.stopped && <p className="msg-note">Stopped. This partial answer isn’t saved to the chat.</p>}
 
-        {!message.streaming && message.content && (
+        {!message.streaming && message.content && !message.error && (
           <div className="msg-actions">
             <CopyButton text={body} />
             {onRetry && (
