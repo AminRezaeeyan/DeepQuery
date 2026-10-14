@@ -14,6 +14,7 @@ from ai_core.services.web_search_service import UnsafeURL, WebPageFetcher, WebSe
 from documents.models import Document
 
 from .citations import SourceRegistry
+from .sandbox import run_python, sandbox_mode
 
 TOOL_REGISTRY = {}
 MAX_OUTPUT_CHARS = 12000
@@ -47,7 +48,7 @@ def tool_definitions(web: bool = True) -> list[dict]:
     return [
         {"name": t.name, "description": t.description, "parameters": t.parameters}
         for t in TOOL_REGISTRY.values()
-        if web or t.name not in WEB_TOOLS
+        if (web or t.name not in WEB_TOOLS) and (t.name != "run_python" or sandbox_mode() != "off")
     ]
 
 
@@ -325,3 +326,49 @@ class Wikipedia:
     def _section_text(get, revid, index):
         html = get(action="parse", oldid=revid, prop="text", section=index)["parse"]["text"]["*"]
         return html_to_text(html)
+
+
+@register_tool
+class RunPython:
+    name = "run_python"
+    description = (
+        "Run Python 3 in a sandbox without network access. The chat's attached files are in the working "
+        "directory under their names, and pandas, numpy and openpyxl are installed. Only what you print is "
+        "returned. Use it for any arithmetic, counting or statistics (e.g. pd.read_csv / pd.read_excel with "
+        "sheet_name=None), and to find out what a script prints: run it with runpy.run_path('script.py'). "
+        "For code in other languages, translate it faithfully to Python and run that."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {"code": {"type": "string", "description": "The Python program. Print the results you need."}},
+        "required": ["code"],
+    }
+
+    @staticmethod
+    def describe(**_):
+        return "Running Python"
+
+    def run(self, context, code):
+        docs = [d for d in chat_documents(context) if d.file]
+        files, cited = [], []
+        for doc in docs:
+            try:
+                files.append((doc.original_filename, doc.file.path))
+            except (ValueError, NotImplementedError):
+                continue
+            n = context.sources.add(("doc", doc.id, ""), filename=doc.original_filename)
+            cited.append(f"[{n}] {doc.original_filename}")
+
+        result = run_python(code, files)
+        if result.timed_out:
+            status = "stopped: took too long"
+        else:
+            status = f"exit code {result.exit_code}"
+        lines = [f"({status})"]
+        if cited:
+            lines.append("Files available (cite these when your result comes from them): " + ", ".join(cited))
+        lines.append("stdout:\n" + (result.stdout or "(nothing printed)"))
+        if result.stderr.strip():
+            lines.append("stderr:\n" + result.stderr)
+        ok = result.exit_code == 0 and not result.timed_out
+        return ToolOutput("\n".join(lines), f"Ran Python ({len(code.splitlines())} lines)" + ("" if ok else f" · {status}"))

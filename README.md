@@ -19,7 +19,8 @@ It's also a portfolio project, so the README describes what works today, not wha
 ## ✨ Key Features
 
 ### 🧠 Research & RAG
-*   **Research agent:** A plain-Python loop with native tool calling (no agent framework): each turn the model either answers or calls a tool, reads the result and continues, up to a step limit. The steps show live in the chat and stay with the answer. Tools: `search_documents`, `read_document` (an exact page or sheet), `web_search`, `fetch_page` (with search inside the page) and `wikipedia`. Providers without tool calling answer in a single retrieval pass instead.
+*   **Research agent:** A plain-Python loop with native tool calling (no agent framework): each turn the model either answers or calls a tool, reads the result and continues, up to a step limit. The steps show live in the chat and stay with the answer. Tools: `search_documents`, `read_document` (an exact page or sheet), `web_search`, `fetch_page` (with search inside the page), `wikipedia` (sections, tables and past revisions) and `run_python`. Providers without tool calling answer in a single retrieval pass instead.
+*   **Code Execution:** `run_python` runs model-written Python (pandas, numpy and openpyxl available) on read-only copies of the chat's files, for arithmetic, table statistics and working out what a script prints. Each run gets a 20 s time limit, 1 GB of memory and no network. With [bubblewrap](https://github.com/containers/bubblewrap) installed (`sudo apt install bubblewrap`) it runs in its own namespace and sees only the Python install and its working directory. Without it, it falls back to a plain subprocess with the same limits, which can still read files the server user can read, so install bubblewrap (or run the server in a container) anywhere users aren't trusted. `CODE_SANDBOX=off` removes the tool.
 *   **Document Q&A:** Upload PDF, TXT, Markdown, CSV, XLSX, JSON and code files to a chat. They're split into passages per page or sheet, embedded, and searched by the agent.
 *   **Web Search:** When enabled, the agent can search the web (`ddgs`, no API key; DuckDuckGo first, then Yahoo), read pages and look things up on Wikipedia. Only public addresses are fetched.
 *   **Citations:** Every source a tool returns gets a number, and answers cite them as `[1]`, `[2]`, down to the page (`refined.pdf, p. 6`). The list under an answer shows only the sources it cites. Whether each claim carries a citation still depends on the model following the instruction.
@@ -88,6 +89,7 @@ Built with Django Jazzmin:
 *   Python 3.10+ and Node.js 20+
 *   PostgreSQL with the `pgvector` extension (on Ubuntu: `sudo apt install postgresql-16-pgvector`)
 *   Redis
+*   Optional: `bubblewrap`, to isolate code the agent runs (see Code Execution)
 
 ### 1. Server
 
