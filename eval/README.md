@@ -36,3 +36,48 @@ calculations, spreadsheet and CSV statistics, code output, images, web search, a
 questions the sources can't answer (the agent should say so). Each question lists the
 capabilities it needs (`requires`), so a low score can be traced to a missing feature,
 such as running code or computing over a table, rather than a bug.
+
+## Running it
+
+From `server/`, with the database, Redis and your providers configured:
+
+```bash
+python manage.py run_eval                                  # every question
+python manage.py run_eval --only q01,q14                   # a few questions
+python manage.py run_eval --judge-provider "gapgpt-gpt5-mini"   # choose the grading model
+```
+
+Each question gets a fresh temporary chat for a dedicated `eval-runner@deepquery.local`
+user (so long-term memory is never read or written), its sources are uploaded and indexed
+through the normal document pipeline, and the question goes through the same answer
+pipeline as the web app. Afterwards the chat, its documents and their files are deleted
+(`--keep-data` keeps them). A run costs real API calls: one answer per question, a web
+search query where web search is on, and one judge call.
+
+The agent answers with the default chat provider (`--provider` to change it). The judge
+defaults to the same provider; pass a stronger model with `--judge-provider` for fairer
+grades. `--no-judge` grades with the automatic checks only.
+
+## Grading
+
+1. **Numbers** – every expected value must appear in the answer, within its tolerance
+   (Persian digits and separators are understood).
+2. **Retrieval** – did the agent retrieve the source that holds the answer?
+3. **Citations** – does every `[n]` exist, and does the answer cite the right source?
+4. **Judge** – the judge model checks each key point and lists wrong or unsupported
+   claims. Its verdict decides whether the answer is correct; the other checks show
+   *where* a wrong answer went wrong.
+
+## Results
+
+Every run is saved in `runs/<date>-<time>-<commit>/`:
+
+```
+report.md              summary: accuracy, by category and capability, every question
+run.json               the same numbers as JSON, plus models, commit and timings
+answers/<id>.md        the agent's full answer, the reference, and the judge's notes
+questions/<id>.json    everything: indexed documents and extracted text, the full prompt,
+                       retrieved sources, web pages fetched, timings, raw judge reply
+```
+
+`report.md` compares the run with the previous one, so run it before and after a change.

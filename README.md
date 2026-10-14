@@ -46,7 +46,8 @@ Built with Django Jazzmin:
 *   **Provider registry:** New LLM or embedding providers register with a decorator; the factories need no changes.
 *   **Background work:** Celery and Redis run document indexing, chat titles, memory extraction and re-embedding.
 *   **Security:** JWT auth with token refresh, sign-in required by default, rate-limited sign-in, password validation, per-user data access, upload checks (ownership, size and file content), and retrieved text passed to the model as untrusted data.
-*   **Tests:** About 180 server tests (pytest) and a client suite (Vitest), run by GitHub Actions on every push. The Claude, Gemini and Ollama providers are tested against mocked SDKs; the OpenAI-compatible provider has also been used against a live API.
+*   **Evaluation:** A 33-question benchmark with automatic grading measures answer quality across features (see `eval/README.md`).
+*   **Tests:** About 190 server tests (pytest) and a client suite (Vitest), run by GitHub Actions on every push. The Claude, Gemini and Ollama providers are tested against mocked SDKs; the OpenAI-compatible provider has also been used against a live API.
 *   **Web Client:** A React + TypeScript + Vite app in `client/` with dark and light themes (see `client/README.md`).
 
 ---
@@ -121,6 +122,13 @@ cd client
 npm install
 npm run dev                          # http://localhost:5173
 ```
+
+### Evaluation
+
+`eval/` holds a benchmark of 33 research questions (English and Persian) over three entity
+linking papers plus spreadsheets, code, notes and images. `python manage.py run_eval`
+answers them through the real pipeline, grades them with a judge model and saves every
+answer in `eval/runs/`. See `eval/README.md`.
 
 ### Tests
 

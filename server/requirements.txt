@@ -39,6 +39,7 @@ Pillow==12.2.0
 httpx==0.28.1
 requests==2.32.4
 pydantic==2.12.5
+PyYAML==6.0.3
 zarinpal-py-sdk==0.1.4
 
 # Development & Testing
