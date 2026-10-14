@@ -9,7 +9,7 @@ from urllib.parse import quote
 
 import requests
 
-from ai_core.services.embedding_service import EmbeddingService
+from ai_core.services.embedding_service import EmbeddingService, words
 from ai_core.services.web_search_service import UnsafeURL, WebPageFetcher, WebSearchService, check_public_url, html_to_text
 from documents.models import Document
 
@@ -223,6 +223,55 @@ class ReadDocument:
         if last_shown >= end:
             return ""
         return f"p. {last_shown + 1}" + (f"-{end}" if end > last_shown + 1 else "")
+
+
+@register_tool
+class FindText:
+    name = "find_text"
+    description = (
+        "Find every line of the attached documents that contains all the given words, like Ctrl-F: exact, "
+        "not by meaning. Use it for names, numbers and terms (e.g. 'entity types', 'Wu et al.', '0-based'), "
+        "and always before saying a document doesn't report something. Returns matching lines with their page."
+    )
+    parameters = {
+        "type": "object",
+        "properties": {
+            "text": {"type": "string", "description": "The words to find, e.g. 'entity types'."},
+            "name": {"type": "string", "description": "Only this document (file name). Optional."},
+        },
+        "required": ["text"],
+    }
+    MAX_MATCHES = 40
+
+    @staticmethod
+    def describe(text="", name=None, **_):
+        return f'Finding "{text}"' + (f" in {name}" if name else "")
+
+    def run(self, context, text, name=None):
+        terms = words(text)
+        if not terms:
+            return ToolOutput("Give at least one word to find.", "find_text: nothing to find")
+        docs = [d for d in chat_documents(context) if not name or name.lower() in (d.original_filename or "").lower()]
+        matches = []
+        for doc in docs:
+            for seg in doc.extracted_segments or [{"label": None, "text": doc.extracted_text}]:
+                lines = seg["text"].splitlines()
+                for i, line in enumerate(lines):
+                    found = " ".join(words(line))
+                    if all(term in found for term in terms):
+                        # Keep a line either side: PDF lines are short and a value is often on the next one.
+                        around = " / ".join(l.strip() for l in lines[max(0, i - 1):i + 2] if l.strip())
+                        matches.append((doc, seg["label"] or "", around))
+        if not matches:
+            where = name or "the attached documents"
+            return ToolOutput(f'No line in {where} contains all of: {", ".join(terms)}.', f'Found no "{text}"')
+        parts = []
+        for doc, location, around in matches[: self.MAX_MATCHES]:
+            n = context.sources.add(("doc", doc.id, location), filename=doc.original_filename, location=location)
+            parts.append(f"[{n}] ({context.sources.label(n)}) {around}")
+        if len(matches) > self.MAX_MATCHES:
+            parts.append(f"[... {len(matches) - self.MAX_MATCHES} more matches; add words to narrow it.]")
+        return ToolOutput("\n".join(parts), f'Found "{text}" · {len(matches)} lines')
 
 
 @register_tool

@@ -10,6 +10,9 @@ tool, read the result, and repeat until you can answer, then answer.
 - Search with short, specific queries (a few words, one thing per search), not lists of keywords.
   Papers often name other methods only by citation (BLINK is "Wu et al. (2020)"), so search for the
   citation too. Settings and sizes are often only in an appendix table of hyperparameters.
+- search_documents finds passages by meaning; find_text finds exact words on every page, like
+  Ctrl-F. Before saying a document doesn't report something, run find_text with its key words
+  (e.g. "entity types") and read the pages it points to.
 - Use web_search, fetch_page and wikipedia (when available) for facts the documents don't have,
   or when the question asks you to look something up.
 - Never do arithmetic, counting or statistics in your head: write it in run_python and use what it
