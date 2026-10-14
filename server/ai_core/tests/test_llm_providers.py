@@ -122,3 +122,61 @@ class TestOpenAIProvider:
 
         assert messages[-1]["content"] == "question"
         assert sent[-1]["content"][1]["type"] == "image_url"
+
+
+def chunk(content=None, tool_calls=None):
+    return SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(content=content, tool_calls=tool_calls))])
+
+
+def call_part(index, id=None, name=None, arguments=None):
+    return SimpleNamespace(index=index, id=id, function=SimpleNamespace(name=name, arguments=arguments))
+
+
+SEARCH_TOOL = {"name": "search_documents", "description": "Search", "parameters": {"type": "object", "properties": {}}}
+
+
+class TestOpenAIToolTurns:
+
+    def _turn(self, chunks, **kwargs):
+        from ai_core.llm_providers.openai_provider import OpenAIProvider
+
+        with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+            create = client_cls.return_value.chat.completions.create
+            create.return_value = iter(chunks)
+            events = list(OpenAIProvider(config()).stream_turn([{"role": "user", "content": "q"}], [SEARCH_TOOL], **kwargs))
+        return events, create.call_args.kwargs
+
+    def test_a_plain_answer_streams_as_text(self):
+        events, kwargs = self._turn([chunk("Hel"), chunk("lo")], tool_choice="none")
+
+        assert events == [("text", "Hel"), ("text", "lo")]
+        assert kwargs["tools"] == [{"type": "function", "function": SEARCH_TOOL}]
+        assert kwargs["tool_choice"] == "none"
+
+    def test_tool_calls_are_assembled_from_fragments(self):
+        events, _ = self._turn([
+            chunk(tool_calls=[call_part(0, id="call_a", name="search_", arguments='{"que')]),
+            chunk(tool_calls=[call_part(0, name="documents", arguments='ry": "ReFinED speed"}')]),
+            chunk(tool_calls=[call_part(1, id="call_b", name="wikipedia", arguments='{"query": "Fandom"}')]),
+        ])
+
+        [(kind, calls)] = events
+        assert kind == "tool_calls"
+        assert [(c.id, c.name, c.arguments) for c in calls] == [
+            ("call_a", "search_documents", {"query": "ReFinED speed"}),
+            ("call_b", "wikipedia", {"query": "Fandom"}),
+        ]
+
+    def test_invalid_arguments_are_reported_not_raised(self):
+        events, _ = self._turn([chunk(tool_calls=[call_part(0, id="c", name="search_documents", arguments='{"query": ')])])
+
+        [call] = events[0][1]
+        assert call.arguments == {} and call.error.startswith("Invalid arguments")
+
+
+def test_providers_without_tool_support_say_so():
+    from ai_core.llm_providers.claude_provider import ClaudeProvider
+    from ai_core.llm_providers.openai_provider import OpenAIProvider
+
+    assert OpenAIProvider.supports_tools is True
+    assert ClaudeProvider.supports_tools is False
