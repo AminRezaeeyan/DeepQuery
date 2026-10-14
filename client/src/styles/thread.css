@@ -699,3 +699,9 @@ button.cite:focus-visible::after {
   display: flex;
   justify-content: center;
 }
+
+.src-nums {
+  display: inline-flex;
+  gap: 3px;
+  flex: none;
+}
