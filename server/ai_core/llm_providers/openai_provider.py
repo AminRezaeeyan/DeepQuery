@@ -16,6 +16,8 @@ class OpenAIProvider(LLMProviderBase):
         self.model = provider_config.model_name
 
     def stream(self, messages, image_bytes=None, mime_type=None):
+        # Work on a copy: callers keep using their messages (e.g. to log the prompt).
+        messages = [dict(m) for m in messages]
         if image_bytes and mime_type:
             base64_image = base64.b64encode(image_bytes).decode('utf-8')
             image_url = f"data:{mime_type};base64,{base64_image}"
@@ -28,9 +30,9 @@ class OpenAIProvider(LLMProviderBase):
                             {"type": "image_url", "image_url": {"url": image_url}}
                         ]
                     elif isinstance(message["content"], list):
-                        message["content"].append(
+                        message["content"] = message["content"] + [
                             {"type": "image_url", "image_url": {"url": image_url}}
-                        )
+                        ]
                     break
 
         try:

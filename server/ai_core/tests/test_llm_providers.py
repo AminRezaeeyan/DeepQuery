@@ -107,3 +107,18 @@ class TestOllamaProvider:
     def test_attaches_image_to_the_last_user_message(self):
         _, call = self._stream(MESSAGES, image_bytes=b"img", mime_type="image/png")
         assert call.kwargs["json"]["messages"][-1]["images"] == ["aW1n"]
+
+
+class TestOpenAIProvider:
+
+    def test_attaching_an_image_does_not_change_the_callers_messages(self):
+        from ai_core.llm_providers.openai_provider import OpenAIProvider
+
+        messages = [{"role": "system", "content": "RULES"}, {"role": "user", "content": "question"}]
+        with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+            client_cls.return_value.chat.completions.create.return_value = iter([])
+            list(OpenAIProvider(config()).stream(messages, image_bytes=b"img", mime_type="image/png"))
+            sent = client_cls.return_value.chat.completions.create.call_args.kwargs["messages"]
+
+        assert messages[-1]["content"] == "question"
+        assert sent[-1]["content"][1]["type"] == "image_url"
