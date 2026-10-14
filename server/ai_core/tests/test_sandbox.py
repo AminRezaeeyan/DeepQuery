@@ -92,3 +92,18 @@ def test_the_tool_offers_the_chats_files_and_numbers_them_for_citation(settings,
     assert "[1] nil_audit.csv" in output.text
     assert "stdout:\n0.5" in output.text
     assert output.summary == "Ran Python (3 lines)"
+
+
+def test_a_bare_last_expression_is_printed_like_in_a_notebook(settings):
+    settings.CODE_SANDBOX = "subprocess"
+
+    result = run_python("total = 9924\nnil = 3331\ntotal - nil, nil", [])
+
+    assert result.stdout.strip() == "(6593, 3331)"
+
+
+def test_code_that_prints_is_left_alone(settings):
+    settings.CODE_SANDBOX = "subprocess"
+
+    assert run_python("x = 2\nprint(x)\nx = 3", []).stdout == "2\n"
+    assert run_python("print('once')", []).stdout == "once\n"

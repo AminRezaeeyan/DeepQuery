@@ -367,7 +367,7 @@ class RunPython:
         lines = [f"({status})"]
         if cited:
             lines.append("Files available (cite these when your result comes from them): " + ", ".join(cited))
-        lines.append("stdout:\n" + (result.stdout or "(nothing printed)"))
+        lines.append("stdout:\n" + (result.stdout or "(nothing printed: print() the values you need)"))
         if result.stderr.strip():
             lines.append("stderr:\n" + result.stderr)
         ok = result.exit_code == 0 and not result.timed_out

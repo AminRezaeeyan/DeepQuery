@@ -10,6 +10,7 @@ user can read. Use bwrap (or a container) wherever untrusted input is possible.
 The working directory holds read-only copies of the chat's documents under their
 file names, so code can open them directly (pd.read_csv("results.csv")).
 """
+import ast
 import os
 import resource
 import shutil
@@ -80,6 +81,23 @@ def _command(mode: str, workdir: Path) -> list[str]:
     ]
 
 
+def show_last_expression(code: str) -> str:
+    """Like a notebook: a bare expression on the last line has its value printed."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return code  # let Python report it
+    if not tree.body or not isinstance(tree.body[-1], ast.Expr):
+        return code
+    last = tree.body[-1].value
+    if isinstance(last, ast.Call) and isinstance(last.func, ast.Name) and last.func.id == "print":
+        return code
+    show = ast.parse("_value = None\nif _value is not None:\n    print(_value)").body
+    show[0].value = last
+    tree.body[-1:] = show
+    return ast.unparse(ast.fix_missing_locations(tree))
+
+
 def _cut(text: str) -> str:
     return text if len(text) <= MAX_OUTPUT_CHARS else text[:MAX_OUTPUT_CHARS] + "\n[... output cut]"
 
@@ -99,7 +117,7 @@ def run_python(code: str, files: list[tuple[str, str]], timeout: int | None = No
             shutil.copyfile(path, target)
             target.chmod(0o444)
         prelude = NO_NETWORK_PRELUDE if mode == "subprocess" else ""
-        (workdir / "main.py").write_text(prelude + code, encoding="utf-8")
+        (workdir / "main.py").write_text(prelude + show_last_expression(code), encoding="utf-8")
 
         env = {"HOME": tmp, "PATH": "/usr/bin:/bin", "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "MPLBACKEND": "Agg"}
         process = subprocess.Popen(
