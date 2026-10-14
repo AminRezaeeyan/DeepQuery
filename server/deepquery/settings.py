@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'chats',
     'documents',
     'subscriptions',
+    'evaluation',
 ]
 
 MIDDLEWARE = [
