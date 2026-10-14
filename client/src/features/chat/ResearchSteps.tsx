@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Check, ChevronRight, FileSearch, FileText, Globe, Link2, LoaderCircle, SquareTerminal } from "lucide-react";
+import { BookOpen, Check, ChevronRight, FileSearch, FileText, Globe, Link2, ListChecks, LoaderCircle, SquareTerminal } from "lucide-react";
 import type { AgentStep } from "../../lib/types";
 
 const ICONS: Record<string, typeof Globe> = {
@@ -9,6 +9,7 @@ const ICONS: Record<string, typeof Globe> = {
   fetch_page: Link2,
   wikipedia: BookOpen,
   run_python: SquareTerminal,
+  check_answer: ListChecks,
 };
 
 function StepList({ steps }: { steps: AgentStep[] }) {
