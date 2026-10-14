@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 EVAL_USER_EMAIL = "eval-runner@deepquery.local"
 
 
+class ModelUnavailable(Exception):
+    pass
+
+
 def eval_user():
     user, created = get_user_model().objects.get_or_create(email=EVAL_USER_EMAIL)
     if created:
@@ -50,9 +54,22 @@ class QuestionRunner:
     def __init__(self, sources_dir: Path, agent_provider, judge_provider, keep_data: bool = False):
         self.sources_dir = Path(sources_dir)
         self.agent_provider = agent_provider
+        self.judge_provider = judge_provider
         self.judge = provider_instance(judge_provider) if judge_provider else None
         self.keep_data = keep_data
         self.user = eval_user()
+
+    def check_models(self):
+        """Fails fast on a wrong model name or key, before any question is spent."""
+        probe = [{"role": "user", "content": "Reply with the word OK."}]
+        checks = [("agent", self.agent_provider, provider_instance(self.agent_provider))]
+        if self.judge:
+            checks.append(("judge", self.judge_provider, self.judge))
+        for role, config, instance in checks:
+            try:
+                "".join(instance.stream(probe))
+            except Exception as e:
+                raise ModelUnavailable(f"The {role} model '{config.name}' ({config.model_name}) didn't answer: {e}") from e
 
     def run(self, question) -> dict:
         record = {"question": vars(question).copy(), "documents": [], "timings": {}}
@@ -108,7 +125,7 @@ class QuestionRunner:
                     first_token_at = time.monotonic()
                 answer += token
         except Exception as e:  # recorded in the results; the run continues with the next question
-            logger.exception("Question %s failed", question.id)
+            logger.warning("Question %s failed: %s", question.id, e)
             error = f"{type(e).__name__}: {e}"
 
         if STREAM_ERROR_MARKER in answer:
@@ -142,7 +159,7 @@ class QuestionRunner:
             try:
                 result["judge"] = grading.judge(self.judge, question, body, references, grading_context(agent))
             except Exception as e:  # a failed judge call shouldn't stop the run
-                logger.exception("Judge failed on %s", question.id)
+                logger.warning("Judge failed on %s: %s", question.id, e)
                 result["judge"] = {"verdict": None, "raw_reply": "", "error": f"{type(e).__name__}: {e}"}
         else:
             result["judge"] = {"verdict": None, "raw_reply": "", "error": "no answer" if self.judge else "judge disabled"}
@@ -150,10 +167,15 @@ class QuestionRunner:
         verdict = result["judge"].get("verdict")
         if verdict:
             result["correct"], result["score"] = verdict["correct"], verdict["score"]
+        elif not agent["answer"].strip():
+            result["correct"], result["score"] = False, 0.0
+        elif self.judge:
+            # The judge was asked but failed: don't pass off the number checks as a grade.
+            result["correct"], result["score"], result["ungraded"] = False, 0.0, True
         else:
-            # Without a judge, fall back to the deterministic checks where there are any.
+            # Judge disabled: grade with the deterministic checks where there are any.
             has_numbers = bool(result["numbers"])
-            result["correct"] = bool(agent["answer"].strip()) and has_numbers and result["numbers_ok"]
+            result["correct"] = has_numbers and result["numbers_ok"]
             result["score"] = (sum(n["found"] for n in result["numbers"]) / len(result["numbers"])) if has_numbers else 0.0
             result["graded_without_judge"] = True
         record["grading"] = result

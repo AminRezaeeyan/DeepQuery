@@ -83,3 +83,58 @@ def test_run_eval_saves_every_answer_and_grade(setup):
     # The eval chat, its documents and their files are cleaned up.
     assert not Chat.all_objects.filter(title="eval t1").exists()
     assert not Document.objects.exists()
+
+
+class FailingJudge:
+    def __init__(self, fail_probe=False):
+        self.fail_probe = fail_probe
+        self.calls = 0
+
+    def stream(self, messages):
+        self.calls += 1
+        if self.fail_probe or self.calls > 2:  # the first two calls are the agent and judge probes
+            raise RuntimeError("Error code: 404 - model_not_found")
+        yield "OK"
+
+
+def run(tmp_path, agent, judge):
+    with patch.object(OpenAIEmbeddingProvider, "embed_documents", side_effect=lambda texts: [[0.1, 0.2, 0.3] for _ in texts]), \
+         patch.object(OpenAIEmbeddingProvider, "embed_query", return_value=[0.1, 0.2, 0.3]), \
+         patch.object(OpenAIEmbeddingProvider, "count_tokens", return_value=5), \
+         patch("evaluation.runner.ChatGenerationService") as service_cls, \
+         patch("evaluation.runner.provider_instance", return_value=judge):
+        service_cls.return_value.prepare.return_value = {"messages": [], "citation_map": {}}
+        service_cls.return_value.stream_prepared.side_effect = fake_stream
+        call_command(
+            "run_eval",
+            questions=str(tmp_path / "questions.yaml"),
+            sources=str(tmp_path / "sources"),
+            out=str(tmp_path / "runs"),
+            provider=str(agent.id),
+        )
+
+
+@pytest.mark.django_db
+def test_a_failed_judge_call_leaves_the_answer_ungraded(setup):
+    tmp_path, agent = setup
+
+    run(tmp_path, agent, FailingJudge())
+
+    [run_dir] = list((tmp_path / "runs").iterdir())
+    grading = json.loads((run_dir / "questions" / "t1.json").read_text())["grading"]
+    assert grading["ungraded"] is True
+    assert grading["correct"] is False  # the number checks alone don't count as a pass
+    assert json.loads((run_dir / "run.json").read_text())["summary"]["ungraded"] == ["t1"]
+    assert "not graded" in (run_dir / "report.md").read_text()
+
+
+@pytest.mark.django_db
+def test_an_unreachable_model_stops_the_run_before_any_question(setup):
+    from django.core.management.base import CommandError
+
+    tmp_path, agent = setup
+
+    with pytest.raises(CommandError, match="didn't answer"):
+        run(tmp_path, agent, FailingJudge(fail_probe=True))
+
+    assert not (tmp_path / "runs").exists()

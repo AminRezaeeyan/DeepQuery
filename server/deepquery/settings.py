@@ -145,6 +145,8 @@ LOGGING = {
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": config("LOG_LEVEL", default="INFO")},
+    # The HTTP clients log every request at INFO; keep only their warnings.
+    "loggers": {name: {"level": "WARNING"} for name in ("httpx", "httpcore", "openai", "anthropic")},
 }
 
 # --- UPLOADS ---
