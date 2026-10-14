@@ -54,3 +54,17 @@ def test_only_selects_questions_and_rejects_unknown_ids(tmp_path):
     assert [q.id for q in load_questions(path, sources, only=["q1"])] == ["q1"]
     with pytest.raises(QuestionFileError, match="Unknown question ids"):
         load_questions(path, sources, only=["q9"])
+
+
+def test_every_evidence_passage_exists_in_its_extracted_source():
+    """Guards the dataset against extraction changes: retrieval can only find what extraction produces."""
+    from documents.services.document_processing_service import DocumentProcessingService
+
+    flat = {}
+    for question in load_questions(EVAL_DIR / "questions.yaml", EVAL_DIR / "sources"):
+        for source, passages in question.evidence.items():
+            if source not in flat:
+                text = DocumentProcessingService.extract_text(str(EVAL_DIR / "sources" / source))
+                flat[source] = " ".join(text.split()).lower()
+            for passage in passages:
+                assert " ".join(passage.split()).lower() in flat[source], f"{question.id}: {passage!r} not in {source}"

@@ -63,11 +63,20 @@ def check_citations(body: str, references: dict[int, str], expected_files: list[
     }
 
 
-def check_retrieval(retrieved_files: list[str], expected_files: list[str]) -> dict:
+def check_retrieval(retrieved_files: list[str], expected_files: list[str], context: str = "", evidence: dict | None = None) -> dict:
+    """File-level hit, plus whether each needed passage reached the model."""
+    flat = " ".join(context.split()).lower()
+    passages = [
+        {"source": source, "passage": passage, "found": " ".join(passage.split()).lower() in flat}
+        for source, items in (evidence or {}).items()
+        for passage in items
+    ]
     return {
         "retrieved_files": retrieved_files,
         "expected_files": expected_files,
         "hit": all(f in retrieved_files for f in expected_files),
+        "passages": passages,
+        "passages_hit": all(p["found"] for p in passages) if passages else None,
     }
 
 

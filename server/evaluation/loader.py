@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-ALLOWED_KEYS = {"id", "category", "language", "question", "sources", "image", "web_search", "answer", "grading", "cite", "requires"}
+ALLOWED_KEYS = {"id", "category", "language", "question", "sources", "image", "web_search", "answer", "grading", "cite", "evidence", "requires"}
 
 
 class QuestionFileError(ValueError):
@@ -24,6 +24,8 @@ class Question:
     web_search: bool = False
     cite: list = field(default_factory=list)
     requires: list = field(default_factory=list)
+    # {source file: [passages that must reach the model]}
+    evidence: dict = field(default_factory=dict)
 
     @property
     def abstain(self) -> bool:
@@ -48,6 +50,9 @@ def load_questions(path: Path, sources_dir: Path, only: list[str] | None = None)
         grading = question.grading or {}
         if not (grading.get("numbers") or grading.get("key_points") or grading.get("abstain")):
             raise QuestionFileError(f"{question.id}: grading needs numbers, key_points or abstain")
+        for name in question.evidence:
+            if name not in question.sources:
+                raise QuestionFileError(f"{question.id}: evidence names {name}, which isn't one of its sources")
         for name in [*question.sources, *question.cite, *([question.image] if question.image else [])]:
             if not (Path(sources_dir) / name).is_file():
                 raise QuestionFileError(f"{question.id}: missing source file {name}")

@@ -6,7 +6,9 @@
 #   numbers    every listed value must appear (within its absolute tolerance)
 #   key_points the grader model checks each point is covered correctly
 #   abstain    the answer must say the sources don't contain this
-# `cite` lists the sources a good answer cites; `requires` lists the
+# `cite` lists the sources a good answer cites; `evidence` lists, per source,
+# passages that must reach the model for the question to be answerable
+# (retrieval is scored on these); `requires` lists the
 # capabilities the question needs, so the report can separate missing
 # features (e.g. computation, code execution) from bugs.
 #
@@ -30,6 +32,8 @@
       - About 123 million come from RoBERTa-base
       - About 31 million are the description encoder and output layers
   cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["approximately 154M parameters"]
   requires: [retrieval]
 
 - id: q02
@@ -47,6 +51,8 @@
       - 8 NVIDIA V100 GPUs
       - 5.9 million entities
   cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["it takes about 2.8 hours to compute"]
   requires: [retrieval]
 
 - id: q03
@@ -68,6 +74,8 @@
       - 94.61% inter-annotator agreement
       - 3.80 candidates per mention on average
   cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["6,593 positive examples", "94.61%"]
   requires: [retrieval]
 
 - id: q04
@@ -88,6 +96,8 @@
       - On AIDA w/o NIL, MSNBC and WNED-WIKI, epsilon is 0 and lambda is 0.9
       - Epsilon 0 means always linking, because those datasets have no NIL mentions
   cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["AIDA w/o NIL, MSNBC & WNED-WIKI"]
   requires: [retrieval, table_reading]
 
 - id: q05
@@ -107,6 +117,8 @@
       - Accuracy falls by 0.8 points (71.5 to 70.7)
       - Recall@100 falls by 2.1 points (96.7 to 94.6)
   cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["HNSW2 70.7 91.0 93.9 94.6 1.4"]
   requires: [retrieval, table_reading, computation]
 
 - id: q06
@@ -130,6 +142,9 @@
       - The gap is about 10.3 points in BLINK's favour
       - The setups differ (BLINK fine-tuned in-domain vs ReFinED's zero-shot setting), so the comparison isn't like-for-like
   cite: [blink.pdf, refined.pdf]
+  evidence:
+    blink.pdf: ["Ours Wiki and in-domain 76.8"]
+    refined.pdf: ["ReFinED 61.6 68.2 66.5"]
   requires: [retrieval, multi_doc, table_reading, computation]
 
 - id: q07
@@ -153,6 +168,9 @@
       - The NIL paper also reports lower numbers with NIL mentions included (79.58 cross, 65.01 bi)
       - Differences come from the metric, the training setup and NIL handling
   cite: [refined.pdf, nil-prediction.pdf]
+  evidence:
+    refined.pdf: ["86.7 90.3 88.9"]
+    nil-prediction.pdf: ["BLINK-cross 84.09 88.89 85.70 83.08 45.16 79.58 87.49"]
   requires: [retrieval, multi_doc, table_reading]
 
 - id: q08
@@ -175,6 +193,9 @@
       - The NIL paper finds bi-encoders strong at NIL detection (BLINK-bi 69.59 vs BLINK-cross 45.16 NIL accuracy on AIDA with NIL)
       - The NIL paper suggests cross-encoders may be more prone to overfitting
   cite: [blink.pdf, nil-prediction.pdf]
+  evidence:
+    blink.pdf: ["Ours (bi-encoder only) 92.9"]
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59"]
   requires: [retrieval, multi_doc, synthesis]
 
 - id: q09
@@ -195,6 +216,9 @@
       - CLINK uses 187 types on NEL
       - CLINK uses 14 top-level types on traditional datasets, to transfer better across datasets
   cite: [refined.pdf, nil-prediction.pdf]
+  evidence:
+    refined.pdf: ["# entity types 1400"]
+    nil-prediction.pdf: ["187 distinct types"]
   requires: [retrieval, multi_doc]
 
 - id: q10
@@ -216,6 +240,8 @@
       - The deployment linked 25 billion mentions
       - About 926,000 mentions per machine hour (about 257 per second)
   cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["27k machine hours"]
   requires: [retrieval, computation]
 
 - id: q11
@@ -238,6 +264,9 @@
       - The BLINK bi-encoder takes about 20.8 ms per mention (93 s / 4,464)
       - BLINK's 9.2 ms measures candidate retrieval only, so it isn't the same measurement
   cite: [refined.pdf, blink.pdf]
+  evidence:
+    refined.pdf: ["ReFinED 15 89.4"]
+    blink.pdf: ["9.2 ms on average"]
   requires: [retrieval, multi_doc, computation]
 
 - id: q12
@@ -257,6 +286,8 @@
       - BLINK-bi drops the most, by 17.60 points
       - Order is BLINK-bi, CLINK-bi (8.17), BLINK-cross (7.91), CLINK-cross (6.13)
   cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59 65.01 82.61"]
   requires: [retrieval, table_reading, computation]
 
 - id: q13
@@ -279,6 +310,8 @@
       - The fine-tuned model averages 88.50 out of domain
       - The Wikipedia-only model is slightly better out of domain; fine-tuning wins overall because of AIDA
   cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["ReFinED (Wikipedia) 87.5 94.4 91.8 91.6 77.8 88.7 88.6"]
   requires: [retrieval, table_reading, computation]
 
 - id: q14
@@ -296,6 +329,8 @@
       - The average is 92.77
       - The failed run is excluded, as the notes sheet instructs
   cite: [reproduction_runs.xlsx]
+  evidence:
+    reproduction_runs.xlsx: ["exclude them from every average"]
   requires: [retrieval, table_reading, computation]
 
 - id: q15
@@ -316,6 +351,8 @@
       - ReFinED's total cost is 6.50 USD
       - BLINK-cross is the most expensive at 247.65 USD, about 38x more
   cite: [reproduction_runs.xlsx]
+  evidence:
+    reproduction_runs.xlsx: ["usd_per_hour"]
   requires: [retrieval, table_reading, computation]
 
 - id: q16
@@ -335,6 +372,9 @@
       - Total cost was 559.29 USD, including the billed failed runs
       - It was 159.29 USD over budget
   cite: [reproduction_runs.xlsx, lab_notes.md]
+  evidence:
+    reproduction_runs.xlsx: ["usd_per_hour"]
+    lab_notes.md: ["capped at 400 USD"]
   requires: [retrieval, multi_doc, table_reading, computation]
 
 - id: q17
@@ -414,6 +454,8 @@
       - In the audit, the cross-encoder has higher overall accuracy (about 85.0% vs 79.6%)
       - The paper shows the same pattern (e.g. BLINK-bi 69.59 vs BLINK-cross 45.16 NIL accuracy on AIDA with NIL)
   cite: [nil_audit.csv, nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59"]
   requires: [retrieval, multi_doc, table_reading, computation]
 
 - id: q21
@@ -436,6 +478,9 @@
       - The script uses a strict > while the paper uses >= epsilon
       - Under the paper's rule "the birds" (score exactly 0.50) links to The Birds (film), leaving 1/5 NIL
   cite: [nil_threshold.py, nil-prediction.pdf]
+  evidence:
+    nil_threshold.py: ["if score > epsilon"]
+    nil-prediction.pdf: ["nil threshold ϵ = 0.5"]
   requires: [retrieval, code_reasoning, multi_doc]
 
 - id: q22
@@ -455,6 +500,8 @@
       - There's an off-by-one bug: ranks are 0-based, so the condition should be r < k
       - The correct values are 0.15, 0.50 and 0.80
   cite: [recall_at_k.py]
+  evidence:
+    recall_at_k.py: ["r <= k"]
   requires: [retrieval, code_reasoning, computation]
 
 - id: q23
@@ -473,6 +520,8 @@
       - It prints refined 18.1 h, bi-encoder 138.9 h and cross-encoder 2083.3 h
       - The cross-encoder is about 115x slower than ReFinED
   cite: [latency_estimate.ts]
+  evidence:
+    latency_estimate.ts: ["msPerForwardPass: 65"]
   requires: [retrieval, code_reasoning, computation]
 
 - id: q24
@@ -516,6 +565,9 @@
       - The lab notes claim about 100x
       - The ReFinED paper reports about 60x, matching the benchmark, so the 100x claim is wrong
   cite: [lab_notes.md, refined.pdf]
+  evidence:
+    lab_notes.md: ["about 100x faster"]
+    refined.pdf: ["60 times faster than the BLINK cross-encoder"]
   requires: [vision, retrieval, multi_doc, computation, conflict_detection]
 
 - id: q26
@@ -535,6 +587,8 @@
       - Wikia is now called Fandom
       - It was founded in 2004
   cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["Logeswaran et al. (2019) from Wikia"]
   requires: [retrieval, web]
 
 - id: q27
@@ -556,6 +610,8 @@
       - The whole dataset has 1,393 documents
       - The test set is about 16.6% of the dataset
   cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["231 documents and 4464 mentions"]
   requires: [retrieval, web, computation]
 
 - id: q28
@@ -576,6 +632,8 @@
       - Tsinghua was founded in 1911 and Peking University in 1898
       - Peking University is older, by 13 years
   cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["Tsinghua University", "Peking University"]
   requires: [retrieval, web, computation]
 
 - id: q29
@@ -647,6 +705,9 @@
       - The NIL paper uses 0.5, so the Persian threshold is 0.05 lower
       - The answer is written in Persian
   cite: [yaddasht-ha.md, nil-prediction.pdf]
+  evidence:
+    yaddasht-ha.md: ["هر برچسب‌گذار روزانه ۴۰ جمله"]
+    nil-prediction.pdf: ["nil threshold ϵ = 0.5"]
   requires: [retrieval, multi_doc, computation, persian]
 
 - id: q33
@@ -667,4 +728,6 @@
       - On a single V100 GPU
       - The answer is written in Persian
   cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["60 times faster than the BLINK cross-encoder"]
   requires: [retrieval, persian, computation]

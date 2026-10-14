@@ -165,7 +165,7 @@ class QuestionRunner:
         result = {
             "numbers": grading.check_numbers(body, question.grading.get("numbers", [])),
             "citations": grading.check_citations(body, references, question.cite),
-            "retrieval": grading.check_retrieval(agent["retrieved_sources"], question.cite),
+            "retrieval": grading.check_retrieval(agent["retrieved_sources"], question.cite, grading_context(agent), question.evidence),
         }
         result["numbers_ok"] = all(n["found"] for n in result["numbers"])
 
