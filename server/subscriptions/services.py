@@ -1,7 +1,6 @@
 import functools
 from datetime import timedelta
 from django.conf import settings
-from django.urls import reverse
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import F
@@ -99,8 +98,10 @@ class SubscriptionService:
         UserUsage.objects.filter(user=user, **{f"{field}__gt": 0}).update(**{field: F(field) - 1})
 
     @staticmethod
-    def initiate_zarinpal_payment(user, plan, request):
-        callback_url = request.build_absolute_uri(reverse('payment-verify'))
+    def initiate_zarinpal_payment(user, plan):
+        # ZarinPal sends the user back to the client, which verifies the
+        # payment through the API and shows the result.
+        callback_url = f"{settings.CLIENT_URL.rstrip('/')}/payment/result"
 
         payment = Payment.objects.create(
             user=user,
@@ -146,6 +147,11 @@ class SubscriptionService:
         if status != "OK":
             raise ValidationError("Payment was canceled by the user.")
 
+        # Reloading the result page verifies again: report the earlier success.
+        done = Payment.objects.select_related("plan").filter(authority=authority, status=Payment.Status.SUCCESS).first()
+        if done:
+            return {"message": "Payment successful. Subscription updated.", "ref_id": str(done.ref_id), "plan": done.plan.name}
+
         try:
             payment = Payment.objects.get(authority=authority, status=Payment.Status.PENDING)
         except Payment.DoesNotExist:
@@ -176,7 +182,7 @@ class SubscriptionService:
                     user=user,
                     defaults={"plan": plan, "start_date": now, "end_date": now + timedelta(days=30)},
                 )
-                return {"message": "Payment successful. Subscription updated.", "ref_id": payment.ref_id}
+                return {"message": "Payment successful. Subscription updated.", "ref_id": str(payment.ref_id), "plan": plan.name}
             else:
                 payment.status = Payment.Status.FAILED
                 payment.save()

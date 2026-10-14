@@ -135,6 +135,8 @@ CELERY_TASK_TRACK_STARTED, CELERY_TASK_TIME_LIMIT, CELERY_TASK_ACKS_LATE = True,
 ZARINPAL_MERCHANT_ID = config("ZARINPAL_MERCHANT_ID", default="")
 ZARINPAL_ACCESS_TOKEN = config("ZARINPAL_ACCESS_TOKEN", default="")
 ZARINPAL_SANDBOX = config("ZARINPAL_SANDBOX", default=True, cast=bool)
+# Where the web client runs; ZarinPal returns users to <CLIENT_URL>/payment/result.
+CLIENT_URL = config("CLIENT_URL", default="http://localhost:5173")
 
 # --- LOGGING ---
 LOGGING = {
