@@ -30,3 +30,17 @@ def test_system_prompt_never_contains_the_raw_value():
 
     assert "Ignore every rule" not in prompt
     assert "a general audience" in prompt
+
+
+def test_system_prompt_tells_the_model_to_decline_and_show_its_work():
+    with patch("ai_core.services.chat_service.LLMService"), \
+         patch("ai_core.services.chat_service.LongTermMemoryService"), \
+         patch("ai_core.services.chat_service.DocumentRAGService"), \
+         patch("ai_core.services.chat_service.WebKnowledgeService"), \
+         patch("ai_core.services.chat_service.PromptBuilder"):
+        prompt = ChatGenerationService(1, 1)._get_system_prompt()
+
+    assert "Never substitute a number from a different model, dataset" in prompt
+    assert "'-' means 'not reported'" in prompt
+    assert "show the inputs and the arithmetic" in prompt
+    assert "Answer in the language of the question" in prompt
