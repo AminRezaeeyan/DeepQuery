@@ -54,7 +54,7 @@ class TestMemoryRelevance:
         strong = MemoryFact(user_id=1, fact="User is allergic to peanuts")
 
         with patch("ai_core.services.memory.long_term_memory.EmbeddingService") as embedder:
-            embedder.return_value.search.return_value = [(weak, 0.2, weak.fact), (strong, 0.8, strong.fact)]
+            embedder.return_value.search.return_value = [(weak, 0.2, weak.fact, ""), (strong, 0.8, strong.fact, "")]
             context = LongTermMemoryService(user_id=1).build_memory_context("Is this snack safe for me?", token_limit=500)
 
         assert "peanuts" in context

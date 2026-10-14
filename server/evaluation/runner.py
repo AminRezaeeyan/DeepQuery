@@ -154,7 +154,8 @@ class QuestionRunner:
             "answer": answer,
             "error": error,
             "prompt_messages": (prepared or {}).get("messages", []),
-            "retrieved_sources": [c["url"] or c["filename"] for c in sorted(citation_map.values(), key=lambda c: c["cite_id"])],
+            "retrieved_sources": list(dict.fromkeys(c["url"] or c["filename"] for c in sorted(citation_map.values(), key=lambda c: c["cite_id"]))),
+            "retrieved_passages": [c["label"] for c in sorted(citation_map.values(), key=lambda c: c["cite_id"])],
             "web_pages_fetched": web_documents,
         }
 

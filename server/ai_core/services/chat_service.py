@@ -93,22 +93,24 @@ class ChatGenerationService:
         citation_map = {}
         
         if rag_results:
-            doc_counter = 1
-            # Unpacking Document instance and score based on DocumentRAGService
-            for obj, score, text in rag_results:
-                doc_id = obj.id
-                if doc_id not in citation_map:
-                    citation_map[doc_id] = {
-                        "cite_id": doc_counter,
-                        "url": getattr(obj, "source_url", None),
-                        "filename": getattr(obj, "original_filename", "File")
+            # One citation per document page (or sheet), so readers can find the passage.
+            for obj, score, text, location in rag_results:
+                key = (obj.id, location)
+                if key not in citation_map:
+                    url = getattr(obj, "source_url", None)
+                    filename = getattr(obj, "original_filename", None) or "File"
+                    name = url or filename
+                    citation_map[key] = {
+                        "cite_id": len(citation_map) + 1,
+                        "url": url,
+                        "filename": filename,
+                        "location": location,
+                        "label": f"{name}, {location}" if location else name,
                     }
-                    doc_counter += 1
-                    
-                cite_id = citation_map[doc_id]["cite_id"]
 
+                cite = citation_map[key]
                 if text:
-                    formatted_knowledge_block += f"--- Source [{cite_id}] ---\n{text}\n\n"
+                    formatted_knowledge_block += f"--- Source [{cite['cite_id']}] ({cite['label']}) ---\n{text}\n\n"
 
         # 5. Short-term memory (chat history)
         short_term_memory = ShortTermMemory(
@@ -145,8 +147,7 @@ class ChatGenerationService:
             yield "\n\n**References:**\n"
             sorted_cites = sorted(citation_map.values(), key=lambda x: x["cite_id"])
             for cit in sorted_cites:
-                source_name = cit["url"] if cit["url"] else cit["filename"]
-                yield f"[{cit['cite_id']}] {source_name}\n"
+                yield f"[{cit['cite_id']}] {cit['label']}\n"
 #
 
 def untrusted_block(tag: str, text: str) -> str:

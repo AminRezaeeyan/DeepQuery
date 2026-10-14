@@ -69,7 +69,9 @@ def reembed_all_objects(new_provider_id):
         if not raw_text:
             continue
 
-        service.embed_instance(instance, raw_text, tag=entry["tag"])
+        # Documents keep their page/sheet segments so citations still name the page.
+        segments = getattr(instance, "extracted_segments", None) or None
+        service.embed_instance(instance, raw_text, tag=entry["tag"], segments=segments)
 
     finish_provider_switch(new_provider_id)
 

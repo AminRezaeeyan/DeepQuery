@@ -36,12 +36,12 @@ class TestVectorSearch:
         with django_assert_max_num_queries(2):
             results = service.search("fact", content_model=MemoryFact, limit=5)
 
-        assert {obj for obj, _, _ in results} == set(facts)
+        assert {obj for obj, _, _, _ in results} == set(facts)
 
     def test_skips_results_whose_source_was_deleted(self, service, facts):
         MemoryFact.objects.filter(pk=facts[0].pk).delete()
 
         results = service.search("fact", content_model=MemoryFact, limit=5)
 
-        assert facts[0] not in {obj for obj, _, _ in results}
+        assert facts[0] not in {obj for obj, _, _, _ in results}
         assert len(results) == 4

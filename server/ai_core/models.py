@@ -361,6 +361,9 @@ class EmbeddingChunk(models.Model):
 
     chunk_index = models.PositiveIntegerField()
 
+    # Where in the source the chunk comes from, e.g. "p. 6" or "sheet: prices"; shown in citations.
+    location = models.CharField(max_length=100, blank=True, default="")
+
     token_count = models.PositiveIntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -61,7 +61,7 @@ class DocumentRAGService:
             total_tokens = 0
             selected_chunks: list[str] = []
 
-            for doc, score, text in sorted_results: 
+            for doc, score, text, location in sorted_results:
                 if not text:
                     continue
                 tok_count = TokenService.count_tokens(text)
