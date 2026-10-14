@@ -102,6 +102,11 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         f"- Commit: `{meta['git_commit']}`{' (uncommitted changes)' if meta['git_dirty'] else ''}",
         f"- Agent model: {meta['agent_provider']} · Judge model: {meta['judge_provider'] or 'none'} · Embeddings: {meta['embedding_provider']}",
         f"- Questions: {summary['questions']} · Duration: {meta['duration_s']} s",
+        *[
+            f"- Re-run on {r['at'][:16].replace('T', ' ')} at commit `{r['git_commit']}`"
+            f"{' (uncommitted changes)' if r['git_dirty'] else ''}: {', '.join(r['questions'])}"
+            for r in meta.get("reruns", [])
+        ],
         "",
         "## Results",
         "",
@@ -148,14 +153,15 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         passages = g["retrieval"].get("passages_hit")
         retrieved = "—" if passages is None else ("yes" if passages else "no")
         lines.append(
-            f"| [{r['question']['id']}](answers/{r['question']['id']}.md) | {r['question']['category']} | "
+            f"| [{r['question']['id']}](answers/{r['question']['id']}.md){' (re-run)' if r.get('rerun') else ''} | {r['question']['category']} | "
             f"{'⚠️ not graded' if g.get('ungraded') else ('✅' if g['correct'] else '❌')} | {g['score']} | {retrieved} | {cited} | {r['timings'].get('answer_s')} |"
         )
     (run_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def latest_previous_run(runs_dir: Path, current: Path) -> dict | None:
-    candidates = sorted(p for p in runs_dir.glob("*/run.json") if p.parent != current)
+    # Runs are named by start time; "previous" is the latest one started before this one.
+    candidates = sorted(p for p in runs_dir.glob("*/run.json") if p.parent.name < current.name)
     if not candidates:
         return None
     return json.loads(candidates[-1].read_text(encoding="utf-8"))

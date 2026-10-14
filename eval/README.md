@@ -44,7 +44,7 @@ From `server/`, with the database, Redis and your providers configured:
 ```bash
 python manage.py run_eval                                  # every question
 python manage.py run_eval --only q01,q14                   # a few questions
-python manage.py run_eval --judge-provider "gapgpt-gpt5-mini"   # choose the grading model
+python manage.py run_eval --judge-provider "gapgpt-gpt-6-luna"   # choose the grading model
 ```
 
 Each question gets a fresh temporary chat for a dedicated `eval-runner@deepquery.local`
@@ -57,6 +57,19 @@ search query where web search is on, and one judge call.
 The agent answers with the default chat provider (`--provider` to change it). The judge
 defaults to the same provider; pass a stronger model with `--judge-provider` for fairer
 grades. `--no-judge` grades with the automatic checks only.
+
+To run some questions again inside an existing run (after fixing what made them fail),
+pass the run and the questions:
+
+```bash
+python manage.py run_eval --rerun ../eval/runs/<run> --only q07,q20 \
+    --provider "gapgpt-gpt-5-mini" --judge-provider "gapgpt-gpt-6-luna"
+```
+
+Their results replace the old ones and the report is rebuilt from all questions. The
+models must match the run's. Each re-run is listed at the top of `report.md` and in
+`run.json` (`meta.reruns`) with its commit, and re-run questions are marked in the table,
+so a mixed run stays readable as one.
 
 ## Grading
 

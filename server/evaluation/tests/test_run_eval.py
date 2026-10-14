@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch
 
 import pytest
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 
 from ai_core.embedding_providers.openai_provider import OpenAIEmbeddingProvider
 from ai_core.models import EmbeddingProvider, LLMProvider
@@ -139,3 +139,60 @@ def test_an_unreachable_model_stops_the_run_before_any_question(setup):
         run(tmp_path, agent, FailingJudge(fail_probe=True))
 
     assert not (tmp_path / "runs").exists()
+
+
+TWO_QUESTIONS = QUESTIONS + QUESTIONS.replace("id: t1", "id: t2")
+
+
+def run_with(tmp_path, agent, answer, **options):
+    def stream(prepared, image_bytes=None, mime_type=None):
+        yield {"type": "text", "text": answer}
+
+    with patch.object(OpenAIEmbeddingProvider, "embed_documents", side_effect=lambda texts: [[0.1, 0.2, 0.3] for _ in texts]), \
+         patch.object(OpenAIEmbeddingProvider, "embed_query", return_value=[0.1, 0.2, 0.3]), \
+         patch.object(OpenAIEmbeddingProvider, "count_tokens", return_value=5), \
+         patch("evaluation.runner.ChatGenerationService") as service_cls, \
+         patch("evaluation.runner.provider_instance", return_value=FakeJudge()):  # answers the model probe
+        service_cls.return_value.prepare.return_value = {"agent": False, "messages": [], "citation_map": {}}
+        service_cls.return_value.answer_events.side_effect = stream
+        call_command("run_eval", questions=str(tmp_path / "questions.yaml"), sources=str(tmp_path / "sources"),
+                     out=str(tmp_path / "runs"), provider=str(agent.id), no_judge=True, **options)
+
+
+@pytest.mark.django_db
+class TestRerun:
+
+    def test_rerunning_a_question_replaces_only_its_result(self, setup):
+        tmp_path, agent = setup
+        (tmp_path / "questions.yaml").write_text(TWO_QUESTIONS)
+        run_with(tmp_path, agent, "No idea.")
+        [run_dir] = list((tmp_path / "runs").iterdir())
+        first_t1 = (run_dir / "questions" / "t1.json").read_text()
+
+        run_with(tmp_path, agent, "About 61 times faster.", rerun=str(run_dir), only="t2")
+
+        assert list((tmp_path / "runs").iterdir()) == [run_dir]  # no new run
+        assert (run_dir / "questions" / "t1.json").read_text() == first_t1
+        t2 = json.loads((run_dir / "questions" / "t2.json").read_text())
+        assert t2["agent"]["answer"] == "About 61 times faster." and t2["rerun"]
+        run = json.loads((run_dir / "run.json").read_text())
+        assert run["summary"]["questions"] == 2 and run["summary"]["correct"] == 1
+        assert run["meta"]["reruns"][0]["questions"] == ["t2"]
+        report_md = (run_dir / "report.md").read_text()
+        assert "- Re-run on " in report_md and ": t2" in report_md
+        assert "[t2](answers/t2.md) (re-run)" in report_md
+
+    def test_a_rerun_must_use_the_same_models(self, setup):
+        tmp_path, agent = setup
+        run_with(tmp_path, agent, "No idea.")
+        [run_dir] = list((tmp_path / "runs").iterdir())
+        other = LLMProvider.objects.create(name="other", provider_type="openai", model_name="m2", api_key="k")
+
+        with pytest.raises(CommandError, match="same --provider"):
+            run_with(tmp_path, other, "61", rerun=str(run_dir), only="t1")
+
+    def test_a_rerun_needs_the_questions_to_run(self, setup):
+        tmp_path, agent = setup
+
+        with pytest.raises(CommandError, match="--rerun needs --only"):
+            run_with(tmp_path, agent, "61", rerun=str(tmp_path / "runs" / "x"))
