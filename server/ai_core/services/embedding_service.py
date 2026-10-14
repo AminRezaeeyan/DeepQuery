@@ -1,4 +1,6 @@
+import math
 import re
+from collections import Counter
 from typing import List, Optional
 from django.contrib.contenttypes.models import ContentType
 from django.conf import settings
@@ -6,6 +8,39 @@ from django.db import transaction, connection
 from ai_core.embedding_providers.factory import EmbeddingProviderFactory
 from ai_core.exceptions import ProviderUnavailable
 from ai_core.models import EmbeddedObject, EmbeddingChunk
+
+# Keyword search ranks a scope's chunks in memory; above this many it's skipped.
+KEYWORD_SCAN_LIMIT = 5000
+RRF_K = 60
+# Arabic letter forms that Persian text also uses, folded so either spelling matches.
+LETTER_FOLDS = str.maketrans({"ي": "ی", "ك": "ک", "ى": "ی", "ة": "ه"})
+
+
+def words(text: str) -> list[str]:
+    # \w is Unicode-aware, so Persian words are kept; the zero-width non-joiner splits
+    # compounds the same way in queries and passages.
+    return re.findall(r"\w+", text.lower().translate(LETTER_FOLDS))
+
+
+def bm25_rank(query: str, texts: list[str], k1: float = 1.5, b: float = 0.75) -> list[tuple[int, float]]:
+    """(index, score) of the texts that share words with the query, best first."""
+    terms = set(words(query))
+    docs = [Counter(words(t)) for t in texts]
+    if not terms or not docs:
+        return []
+    lengths = [sum(d.values()) for d in docs]
+    average = sum(lengths) / len(docs) or 1
+    # Rare words count for more, so "inter-annotator" outweighs "the" and "dataset".
+    idf = {t: math.log(1 + (len(docs) - n + 0.5) / (n + 0.5)) for t in terms for n in [sum(t in d for d in docs)]}
+    scores = []
+    for i, (doc, length) in enumerate(zip(docs, lengths)):
+        score = sum(
+            idf[t] * doc[t] * (k1 + 1) / (doc[t] + k1 * (1 - b + b * length / average))
+            for t in terms if doc[t]
+        )
+        if score > 0:
+            scores.append((i, score))
+    return sorted(scores, key=lambda item: -item[1])
 
 
 class ChunkingService:
@@ -210,50 +245,68 @@ class EmbeddingService:
         Returns:
             List of tuples: (instance, score, text, location)
         """
-        query_vec = self.embed_query(query)
-        params = [query_vec]
-
-
-        base_sql = """
-            SELECT
-                eo.content_type_id,
-                eo.object_id,
-                1 - (c.embedding <=> %s::vector) AS score,
-                c.text,
-                c.location
+        where_sql, params = self._filters(content_model, tag)
+        query_sql = f"""
+            SELECT eo.content_type_id, eo.object_id, 1 - (c.embedding <=> %s::vector) AS score, c.text, c.location
             FROM ai_core_embeddingchunk c
+            INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id
+            WHERE {where_sql}
+            ORDER BY score DESC LIMIT %s;
         """
-        
-        join_sql = " INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id "
+        with connection.cursor() as cur:
+            cur.execute(query_sql, [self.embed_query(query), *params, limit])
+            rows = cur.fetchall()
+        return self._with_objects(rows)
 
+    def keyword_search(self, query: str, content_model=None, limit: int = 5, tag: Optional[str] = None):
+        """BM25 over the matching chunks' words; scores aren't comparable to search()'s."""
+        where_sql, params = self._filters(content_model, tag)
+        with connection.cursor() as cur:
+            cur.execute(f"""
+                SELECT eo.content_type_id, eo.object_id, c.text, c.location
+                FROM ai_core_embeddingchunk c
+                INNER JOIN ai_core_embeddedobject eo ON eo.id = c.embedded_object_id
+                WHERE {where_sql}
+                LIMIT %s;
+            """, [*params, KEYWORD_SCAN_LIMIT + 1])
+            rows = cur.fetchall()
+        if len(rows) > KEYWORD_SCAN_LIMIT:  # too many to rank in memory; vectors alone will do
+            return []
+        ranked = bm25_rank(query, [text for _, _, text, _ in rows])[:limit]
+        return self._with_objects([(rows[i][0], rows[i][1], score, rows[i][2], rows[i][3]) for i, score in ranked])
+
+    def hybrid_search(self, query: str, content_model=None, limit: int = 5, tag: Optional[str] = None):
+        """
+        Vector and keyword results merged by reciprocal rank fusion. Vectors find
+        passages that mean the same thing; keywords find the exact names, numbers
+        and terms a passage contains even when the rest of it (a figure caption,
+        a neighbouring table) pulls its vector elsewhere.
+        """
+        pool = max(limit * 4, 20)
+        fused = {}
+        for results in (self.search(query, content_model, pool, tag), self.keyword_search(query, content_model, pool, tag)):
+            for rank, (obj, _, text, location) in enumerate(results):
+                key = (type(obj), obj.pk, location, text)
+                score = fused.get(key, (obj, 0.0))[1] + 1 / (RRF_K + rank + 1)
+                fused[key] = (obj, score)
+        best = sorted(fused.items(), key=lambda item: -item[1][1])[:limit]
+        return [(obj, score, text, location) for (_, _, location, text), (obj, score) in best]
+
+    def _filters(self, content_model, tag):
         # Only compare against vectors from the model that embedded the query;
         # during a provider switch, chunks from two models coexist.
-        where_clauses = ["eo.provider_id = %s"]
-        params.append(self.provider.provider_model.id)
-
-        # Optional filtering by model type
+        clauses, params = ["eo.provider_id = %s"], [self.provider.provider_model.id]
         if content_model:
-            ct = ContentType.objects.get_for_model(content_model)
-            where_clauses.append("eo.content_type_id = %s")
-            params.append(ct.id)
-
-        # Optional tag filter
+            clauses.append("eo.content_type_id = %s")
+            params.append(ContentType.objects.get_for_model(content_model).id)
         if tag:
-            where_clauses.append("eo.tag = %s")
+            clauses.append("eo.tag = %s")
             params.append(tag)
-        
-        # Assemble the full query
-        query_sql = base_sql + join_sql
-        if where_clauses:
-            query_sql += " WHERE " + " AND ".join(where_clauses)
+        return " AND ".join(clauses), params
 
-        query_sql += " ORDER BY score DESC LIMIT %s;"
-        params.append(limit)
-
-        with connection.cursor() as cur:
-            cur.execute(query_sql, params)
-            rows = cur.fetchall()
-
+    @staticmethod
+    def _with_objects(rows):
+        """(content type, object id, score, text, location) rows → (instance, score, text, location)."""
         # Load the matched objects with one query per content type, not two per row.
         ids_by_type = {}
         for ct_id, object_id, _, _, _ in rows:
@@ -270,8 +323,6 @@ class EmbeddingService:
             obj = objects.get((ct_id, object_id))
             if obj is not None:  # the source was deleted since it was embedded
                 results.append((obj, score, text, location))
-
-
         return results
 
     # Metadata
