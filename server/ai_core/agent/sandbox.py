@@ -12,6 +12,7 @@ file names, so code can open them directly (pd.read_csv("results.csv")).
 """
 import ast
 import os
+import warnings
 import resource
 import shutil
 import signal
@@ -84,7 +85,9 @@ def _command(mode: str, workdir: Path) -> list[str]:
 def show_last_expression(code: str) -> str:
     """Like a notebook: a bare expression on the last line has its value printed."""
     try:
-        tree = ast.parse(code)
+        with warnings.catch_warnings():  # e.g. "invalid escape sequence": the run reports it, not the server
+            warnings.simplefilter("ignore")
+            tree = ast.parse(code)
     except SyntaxError:
         return code  # let Python report it
     if not tree.body or not isinstance(tree.body[-1], ast.Expr):
