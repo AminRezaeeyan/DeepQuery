@@ -56,11 +56,12 @@ class TestResearchAgent:
 
         events = run(agent, messages)
 
-        assert [e["type"] for e in events] == ["text", "reset", "step", "step", "text"]
-        assert events[2] == {"type": "step", "id": 1, "tool": "read_document", "arguments": {"name": "refined.pdf", "part": "6"},
+        # The short preamble before the tool call never reaches the user.
+        assert [e["type"] for e in events] == ["step", "step", "text"]
+        assert events[0] == {"type": "step", "id": 1, "tool": "read_document", "arguments": {"name": "refined.pdf", "part": "6"},
                              "status": "running", "summary": "Reading refined.pdf, p. 6"}
-        assert events[3]["summary"] == "Read refined.pdf, p. 6"
-        assert events[3]["output"] == "[1] (refined.pdf, p. 6)\nPage 6. ReFinED 15 89.4"
+        assert events[1]["summary"] == "Read refined.pdf, p. 6"
+        assert events[1]["output"] == "[1] (refined.pdf, p. 6)\nPage 6. ReFinED 15 89.4"
         assert agent.answer == "ReFinED takes 15 s [1]."
         # The model saw its own tool call and the tool's result before answering.
         assert [m["role"] for m in messages] == ["system", "user", "assistant", "tool"]
@@ -169,3 +170,22 @@ def test_openai_gets_a_forced_tool_in_its_own_format():
         list(OpenAIProvider(config).stream_turn([{"role": "user", "content": "q"}], [], tool_choice="search_documents"))
 
     assert create.call_args.kwargs["tool_choice"] == {"type": "function", "function": {"name": "search_documents"}}
+
+
+@pytest.mark.django_db
+def test_a_long_answer_streams_as_it_is_written(context):
+    chunks = [("text", "word " * 50), ("text", "more "), ("text", "end.")]
+    agent = ResearchAgent(ScriptedModel(chunks), context, tool_definitions(web=False), max_steps=8, token_budget=100_000)
+
+    events = run(agent, [{"role": "user", "content": "q"}])
+
+    # Held back until it's clearly not a preamble, then streamed piece by piece.
+    assert [e["text"] for e in events] == ["word " * 50, "more ", "end."]
+    assert agent.answer == "word " * 50 + "more end."
+
+
+@pytest.mark.django_db
+def test_a_short_answer_is_sent_when_the_turn_ends(context):
+    agent = ResearchAgent(ScriptedModel([("text", "Yes."), ("text", " 3.")]), context, tool_definitions(web=False), max_steps=8, token_budget=100_000)
+
+    assert run(agent, [{"role": "user", "content": "q"}]) == [{"type": "text", "text": "Yes. 3."}]

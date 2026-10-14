@@ -45,11 +45,14 @@ describe("research steps", () => {
     expect(screen.getByText("Read refined.pdf, p. 6")).toBeTruthy();
   });
 
-  it("show live while the agent works, instead of a generic status", () => {
+  it("show only the current step while the agent works", () => {
     const live = [steps[0], { id: 2, tool: "read_document", status: "running" as const, summary: "Reading refined.pdf, p. 6" }];
     render(<MessageItem status="Thinking" message={{ uuid: "a1", role: "assistant", content: "", image: null, created_at: "2026-01-01T00:00:00Z", streaming: true, trace: live }} />);
 
     expect(screen.getByText("Reading refined.pdf, p. 6")).toBeTruthy();
+    expect(screen.getByText("step 2")).toBeTruthy();
+    // Only the current step shows while it works, not the whole tool trail.
+    expect(screen.queryByText(/Searched documents/)).toBeNull();
     expect(screen.queryByText("Thinking")).toBeNull();
   });
 });
