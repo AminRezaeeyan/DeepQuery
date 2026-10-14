@@ -79,10 +79,32 @@ def test_citations_name_the_page():
     assert "--- Source [1] (refined.pdf, p. 6) ---\nReFinED 15 89.4" in sources
     assert "--- Source [1] (refined.pdf, p. 6) ---\nmore of table 5" in sources  # same page, same number
     assert "--- Source [3] (blink.pdf, p. 7) ---" in sources
-    assert output.endswith("[1] refined.pdf, p. 6\n[2] refined.pdf, p. 7\n[3] blink.pdf, p. 7\n")
+    # Only the cited source is listed, under its own number.
+    assert output.endswith("**References:**\n[1] refined.pdf, p. 6\n")
 
 
 def test_eval_counts_a_page_citation_as_citing_the_file():
     assert source_of("refined.pdf, p. 6") == "refined.pdf"
     assert source_of("reproduction_runs.xlsx, sheet: gpu_prices") == "reproduction_runs.xlsx"
     assert source_of("https://example.org/a, b") == "https://example.org/a, b"
+
+
+@pytest.mark.django_db
+def test_references_list_only_the_cited_sources_with_their_numbers():
+    pages = [(Document(id=1, original_filename="refined.pdf"), 0.9 - n / 100, f"page {n} text", f"p. {n}") for n in range(1, 13)]
+    with patch("ai_core.services.chat_service.LLMService") as llm, \
+         patch("ai_core.services.chat_service.LongTermMemoryService"), \
+         patch("ai_core.services.chat_service.WebKnowledgeService"), \
+         patch("ai_core.services.chat_service.DocumentRAGService") as rag:
+        llm.return_value.provider_config.max_context_tokens = 128000
+        rag.return_value.build_knowledge_context.return_value = ("", pages)
+        service = ChatGenerationService(1, 1, is_temporary=True)
+
+        llm.return_value.stream.return_value = iter(["Fast [3], ", "accurate [7][3]."])
+        cited = "".join(service.stream_prepared(service.prepare("q")))
+
+        llm.return_value.stream.return_value = iter(["No citations here."])
+        uncited = "".join(service.stream_prepared(service.prepare("q")))
+
+    assert cited.endswith("**References:**\n[3] refined.pdf, p. 3\n[7] refined.pdf, p. 7\n")
+    assert "References" not in uncited
