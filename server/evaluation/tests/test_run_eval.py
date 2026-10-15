@@ -250,3 +250,20 @@ class TestStoppingEarly:
         assert run["summary"]["questions"] == 2  # t2 keeps its earlier result
         assert json.loads((run_dir / "questions" / "t2.json").read_text())["agent"]["answer"] == "No idea."
         assert "(stopped early): t1" in (run_dir / "report.md").read_text()
+
+
+@pytest.mark.django_db
+def test_a_rerun_stopped_before_any_answer_leaves_the_run_unchanged(setup):
+    tmp_path, agent = setup
+    run_with(tmp_path, agent, "No idea.")
+    [run_dir] = list((tmp_path / "runs").iterdir())
+
+    with patch("evaluation.management.commands.run_eval.QuestionRunner.run", side_effect=KeyboardInterrupt), \
+         patch("evaluation.runner.provider_instance", return_value=FakeJudge()), \
+         pytest.raises(CommandError, match="Stopped early after 0 of 1"):
+        call_command("run_eval", questions=str(tmp_path / "questions.yaml"), sources=str(tmp_path / "sources"),
+                     out=str(tmp_path / "runs"), provider=str(agent.id), no_judge=True, rerun=str(run_dir), only="t1")
+
+    assert "reruns" not in json.loads((run_dir / "run.json").read_text())["meta"] or \
+        json.loads((run_dir / "run.json").read_text())["meta"]["reruns"] == []
+    assert "Re-run on" not in (run_dir / "report.md").read_text()

@@ -159,9 +159,11 @@ class Command(BaseCommand):
             self.stdout.write(f" {status} (score {g['score']}, {record['timings'].get('answer_s')} s)")
 
         if stopped:
-            if opts["rerun"]:
+            if opts["rerun"] and done:
                 meta["reruns"][-1]["questions"] = done  # only what was actually re-run
                 meta["reruns"][-1]["stopped_early"] = True
+            elif opts["rerun"]:
+                meta["reruns"].pop()  # nothing was re-run: leave no trace in the run
             else:
                 meta["stopped_early"] = True
         meta["duration_s"] = round(meta.get("duration_s", 0) + time.monotonic() - started, 1)
