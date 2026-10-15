@@ -13,7 +13,7 @@
 # features (e.g. computation, code execution) from bugs.
 #
 # Paper numbers are from the PDFs in sources/. Answers about the other files
-# were computed from them (see tools/generate_sources.py).
+# were computed from those files.
 
 - id: q01
   category: paper_fact
