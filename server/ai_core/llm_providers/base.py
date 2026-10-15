@@ -47,7 +47,7 @@ class LLMProviderBase:
     def stream(self, messages, image_bytes=None, mime_type=None):
         raise NotImplementedError
 
-    def stream_turn(self, messages, tools, tool_choice="auto"):
+    def stream_turn(self, messages, tools, tool_choice="auto", reasoning_effort=None):
         """
         One model turn with tools available. Yields ("text", delta) while the model
         writes an answer and, if it calls tools instead, ends with
@@ -57,7 +57,8 @@ class LLMProviderBase:
         "tool_calls", and tool results are {"role": "tool", "tool_call_id", "content"}.
         `tools` are {"name", "description", "parameters": JSON schema}.
         `tool_choice` is "auto", "none" (answer now, no more tools) or a tool's
-        name (call that tool this turn).
+        name (call that tool this turn). `reasoning_effort` ("low", "medium",
+        "high") asks reasoning models to think more; others may ignore it.
         """
         raise NotImplementedError
 

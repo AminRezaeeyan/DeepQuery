@@ -161,6 +161,9 @@ RAG_CHUNK_OVERLAP_TOKENS = config("RAG_CHUNK_OVERLAP_TOKENS", default=60, cast=i
 AGENT_MAX_STEPS = config("AGENT_MAX_STEPS", default=10, cast=int)
 # Critique an answer that used tools, then rewrite it, before sending it (two extra model turns).
 AGENT_REVIEW = config("AGENT_REVIEW", default=True, cast=bool)
+# "low", "medium" or "high": how hard reasoning models (e.g. gpt-5-mini) think in the agent's turns.
+# Empty: the provider's default. Higher is slower and costs more; other calls (judge, titles) are unaffected.
+AGENT_REASONING_EFFORT = config("AGENT_REASONING_EFFORT", default="")
 
 # --- CODE EXECUTION (the agent's run_python tool) ---
 # "auto" uses bubblewrap when installed (isolated filesystem and network),

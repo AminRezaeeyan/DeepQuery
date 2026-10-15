@@ -8,6 +8,7 @@ from ai_core.exceptions import ContextLimitExceededError, ProviderStalled
 @register_provider("openai")
 class OpenAIProvider(LLMProviderBase):
     supports_tools = True
+    accepts_reasoning_effort = True
 
     def __init__(self, provider_config):
         super().__init__(provider_config)
@@ -38,15 +39,25 @@ class OpenAIProvider(LLMProviderBase):
                 raise ContextLimitExceededError(str(e))
             raise
 
-    def stream_turn(self, messages, tools, tool_choice="auto"):
+    def stream_turn(self, messages, tools, tool_choice="auto", reasoning_effort=None):
         try:
-            stream = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                tools=[{"type": "function", "function": tool} for tool in tools],
-                tool_choice=tool_choice if tool_choice in ("auto", "none", "required") else {"type": "function", "function": {"name": tool_choice}},
-                stream=True,
-            )
+            request = {
+                "model": self.model,
+                "messages": messages,
+                "tools": [{"type": "function", "function": tool} for tool in tools],
+                "tool_choice": tool_choice if tool_choice in ("auto", "none", "required") else {"type": "function", "function": {"name": tool_choice}},
+                "stream": True,
+            }
+            if reasoning_effort and self.accepts_reasoning_effort:
+                try:
+                    stream = self.client.chat.completions.create(**request, reasoning_effort=reasoning_effort)
+                except BadRequestError as e:
+                    if "reasoning" not in str(e).lower():
+                        raise
+                    self.accepts_reasoning_effort = False  # not a reasoning model: don't ask again
+                    stream = self.client.chat.completions.create(**request)
+            else:
+                stream = self.client.chat.completions.create(**request)
 
             # Tool calls arrive in fragments, keyed by their index in the turn.
             calls = {}

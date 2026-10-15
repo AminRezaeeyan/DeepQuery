@@ -24,8 +24,9 @@ class ScriptedModel:
         self.turns = list(turns)
         self.calls = []
 
-    def stream_turn(self, messages, tools, tool_choice="auto"):
-        self.calls.append({"messages": [dict(m) for m in messages], "tools": [t["name"] for t in tools], "tool_choice": tool_choice})
+    def stream_turn(self, messages, tools, tool_choice="auto", reasoning_effort=None):
+        self.calls.append({"messages": [dict(m) for m in messages], "tools": [t["name"] for t in tools], "tool_choice": tool_choice,
+                           "reasoning_effort": reasoning_effort})
         yield from self.turns.pop(0)
 
 
@@ -196,7 +197,7 @@ def test_a_short_answer_is_sent_when_the_turn_ends(context):
 class StallingModel(ScriptedModel):
     """Stalls in the middle of its first answer, then answers in full."""
 
-    def stream_turn(self, messages, tools, tool_choice="auto"):
+    def stream_turn(self, messages, tools, tool_choice="auto", reasoning_effort=None):
         from ai_core.exceptions import ProviderStalled
         self.calls.append({"tool_choice": tool_choice})
         if len(self.calls) == 1:
@@ -292,3 +293,46 @@ class TestAnswerReview:
 
         assert [c["tool_choice"] for c in model.calls] == ["auto", "auto", "none", "none"]
         assert events[-1] == {"type": "text", "text": "Final [1]."}
+
+
+@pytest.mark.django_db
+def test_the_agent_asks_for_the_configured_reasoning_effort(context):
+    model = ScriptedModel(read_page_6(), [("text", "Answer.")])
+
+    run(ResearchAgent(model, context, tool_definitions(web=False), max_steps=8, token_budget=100_000, reasoning_effort="high"),
+        [{"role": "user", "content": "q"}])
+
+    assert [c["reasoning_effort"] for c in model.calls] == ["high", "high"]
+
+
+def openai_provider():
+    from types import SimpleNamespace
+    from ai_core.llm_providers.openai_provider import OpenAIProvider
+    return OpenAIProvider(SimpleNamespace(api_key="k", model_name="m", base_url=None, max_context_tokens=1000))
+
+
+def test_openai_sends_the_reasoning_effort_only_when_asked():
+    with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        create = client_cls.return_value.chat.completions.create
+        create.return_value = iter([])
+        provider = openai_provider()
+        list(provider.stream_turn([{"role": "user", "content": "q"}], [], reasoning_effort="high"))
+        list(provider.stream_turn([{"role": "user", "content": "q"}], []))
+
+    assert create.call_args_list[0].kwargs["reasoning_effort"] == "high"
+    assert "reasoning_effort" not in create.call_args_list[1].kwargs
+
+
+def test_a_model_that_rejects_reasoning_effort_is_asked_again_without_it():
+    import httpx
+    from openai import BadRequestError
+
+    rejected = BadRequestError("Unsupported parameter: 'reasoning_effort'", response=httpx.Response(400, request=httpx.Request("POST", "http://x")), body=None)
+    with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        create = client_cls.return_value.chat.completions.create
+        create.side_effect = [rejected, iter([]), iter([])]
+        provider = openai_provider()
+        list(provider.stream_turn([{"role": "user", "content": "q"}], [], reasoning_effort="high"))
+        list(provider.stream_turn([{"role": "user", "content": "q"}], [], reasoning_effort="high"))
+
+    assert [("reasoning_effort" in c.kwargs) for c in create.call_args_list] == [True, False, False]
