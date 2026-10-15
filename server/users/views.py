@@ -26,7 +26,7 @@ class RegisterView(APIView):
         
         return Response(
             data={
-                "message": 'User created succussfully!',
+                "message": 'User created successfully!',
                 "tokens": generate_tokens_for_user(user)
             },
             status=status.HTTP_201_CREATED,
