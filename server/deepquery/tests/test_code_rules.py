@@ -60,7 +60,8 @@ def test_installed_packages_match_the_pinned_requirements():
     from importlib.metadata import PackageNotFoundError, version
 
     mismatched = []
-    for line in (SERVER / "requirements.txt").read_text().splitlines():
+    lines = [line for name in ("requirements.txt", "requirements-nodeps.txt") for line in (SERVER / name).read_text().splitlines()]
+    for line in lines:
         line = line.split("#")[0].strip()
         if "==" not in line:
             continue

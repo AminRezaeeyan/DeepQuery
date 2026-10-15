@@ -98,6 +98,7 @@ git clone https://github.com/aminrezaeeyan/DeepQuery.git
 cd DeepQuery/server
 python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+pip install --no-deps -r requirements-nodeps.txt   # see the comment in that file
 cp .env.example .env                 # then edit the database settings
 python manage.py migrate
 python manage.py createsuperuser
