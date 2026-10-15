@@ -113,3 +113,48 @@ def test_retrieval_is_scored_on_the_needed_passages():
     assert [p["found"] for p in result["passages"]] == [True, False]
     assert result["passages_hit"] is False
     assert result["hit"] is True  # the file-level check alone would have called this a success
+
+
+
+def graded(question_id, correct, met, total, unsupported=0, category="paper_fact"):
+    verdict = {"key_points_met": met, "key_points_total": total, "unsupported_claims": ["x"] * unsupported,
+               "correct": correct, "score": round(met / total, 3)}
+    return {
+        "question": {"id": question_id, "category": category, "requires": ["retrieval"], "cite": [], "grading": {}},
+        "agent": {"error": None},
+        "timings": {"answer_s": 1.0},
+        "grading": {"correct": correct, "score": verdict["score"], "numbers": [], "numbers_ok": True,
+                    "citations": {"invalid_ids": [], "expected_cited": True}, "retrieval": {"hit": True},
+                    "judge": {"verdict": verdict}},
+    }
+
+
+def test_partial_answers_get_partial_credit_at_three_levels():
+    from evaluation.report import summarise
+
+    records = [
+        graded("q1", True, 4, 4),
+        graded("q2", False, 3, 4),                 # one key point missing
+        graded("q3", False, 2, 2, unsupported=1),  # every key point, plus a wrong claim
+    ]
+    summary = summarise(records)
+
+    assert summary["accuracy"] == round(1 / 3, 3)             # strict
+    assert summary["key_point_accuracy"] == round(2 / 3, 3)   # q3 counts here
+    assert summary["mean_score"] == round((1 + 0.75 + 1) / 3, 3)
+    assert summary["answers_with_unsupported_claims"] == 1
+
+
+def test_the_report_marks_partial_answers_and_shows_their_key_points(tmp_path):
+    from evaluation.report import summarise, write_report
+
+    records = [graded("q1", True, 4, 4), graded("q2", False, 3, 4), graded("q3", False, 0, 2)]
+    meta = {"run_id": "r", "git_commit": "a", "git_dirty": False, "agent_provider": "x", "judge_provider": "y",
+            "embedding_provider": None, "duration_s": 1, "question_ids": ["q1", "q2", "q3"]}
+    write_report(tmp_path, meta, summarise(records), records, None)
+    text = (tmp_path / "report.md").read_text()
+
+    assert "| paper_fact | ✅ | 4/4 |" in text
+    assert "| paper_fact | 🟡 partial | 3/4 | 0.75 |" in text
+    assert "| paper_fact | ❌ | 0/2 |" in text
+    assert "| Partial credit (share of key points met) | 58.3% |" in text
