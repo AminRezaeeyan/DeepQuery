@@ -10,6 +10,7 @@
   [![React](https://img.shields.io/badge/React-19-20232a?style=flat-square&logo=react)](https://react.dev/)
   [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?style=flat-square&logo=postgresql)](https://github.com/pgvector/pgvector)
   [![Docker](https://img.shields.io/badge/Docker-compose-2496ED?style=flat-square&logo=docker)](#-quick-start)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 </div>
 
 > [!IMPORTANT]
@@ -217,3 +218,8 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md): it covers the setup, the tests, 
 and how to submit a benchmark result.
 
 If DeepQuery is useful to you, a ⭐ helps others find it.
+
+## 📄 License
+
+DeepQuery is released under the [MIT License](LICENSE). The three papers in `eval/sources/`
+belong to their authors and are included only so the benchmark can be reproduced.
