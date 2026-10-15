@@ -96,17 +96,19 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
     def pct(v):
         return "—" if v is None else f"{v * 100:.1f}%"
 
+    stopped = f" · Stopped early: {summary['questions']} of {len(meta['question_ids'])} answered" if meta.get("stopped_early") else ""
     lines = [
         f"# Evaluation run {meta['run_id']}",
         "",
         f"- Commit: `{meta['git_commit']}`{' (uncommitted changes)' if meta['git_dirty'] else ''}",
         f"- Agent model: {meta['agent_provider']} (reasoning effort: {meta.get('agent_reasoning_effort', 'default')})"
         f" · Judge model: {meta['judge_provider'] or 'none'} · Embeddings: {meta['embedding_provider']}",
-        f"- Questions: {summary['questions']} · Duration: {meta['duration_s']} s",
+        f"- Questions: {summary['questions']} · Duration: {meta['duration_s']} s{stopped}",
         *[
             f"- Re-run on {r['at'][:16].replace('T', ' ')} at commit `{r['git_commit']}`"
             f"{' (uncommitted changes)' if r['git_dirty'] else ''}"
-            f", reasoning effort {r.get('agent_reasoning_effort', 'default')}: {', '.join(r['questions'])}"
+            f", reasoning effort {r.get('agent_reasoning_effort', 'default')}"
+            f"{' (stopped early)' if r.get('stopped_early') else ''}: {', '.join(r['questions'])}"
             for r in meta.get("reruns", [])
         ],
         "",
