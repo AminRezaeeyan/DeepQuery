@@ -43,3 +43,22 @@ describe("groupSources", () => {
     ]);
   });
 });
+
+describe("sources consulted", () => {
+  it("lists what an answer read when it cites nothing", () => {
+    const { body, references, consulted } = splitAnswer(
+      "It was 159.29 USD over budget.\n\n**Sources consulted:**\n[1] lab_notes.md\n[2] runs.xlsx, sheet: runs\n",
+    );
+
+    expect(body).toBe("It was 159.29 USD over budget.");
+    expect(consulted).toBe(true);
+    expect(references.map((r) => [r.id, r.name, r.location])).toEqual([
+      [1, "lab_notes.md", null],
+      [2, "runs.xlsx", "sheet: runs"],
+    ]);
+  });
+
+  it("is off for ordinary references", () => {
+    expect(splitAnswer("Fast [1].\n\n**References:**\n[1] refined.pdf, p. 6\n").consulted).toBe(false);
+  });
+});

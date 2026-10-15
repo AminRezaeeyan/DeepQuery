@@ -187,7 +187,10 @@ flowchart LR
 ```
 
 After the answer, `references_text()` appends a references list containing **only the sources
-the answer actually cites**, so the reader isn't shown twenty passages the model skimmed. The
+the answer actually cites**, so the reader isn't shown twenty passages the model skimmed. If an
+answer used sources but cites none of them (smaller models sometimes drop the `[n]`), the
+sources it read are listed instead under "Sources consulted", so the evidence is never hidden;
+the benchmark doesn't count those as citations. The
 client turns `[n]` into links and groups source cards by file (one card per document, not per
 page).
 

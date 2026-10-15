@@ -84,12 +84,15 @@ list of its problems:
    For any cutoff on indices or ranks, work out the smallest case by hand: with 0-based ranks, the
    top 1 is rank 0 only, so "within the top k" means r < k; code using r <= k counts one too many.
 5. Missing: for anything the draft says isn't reported, run find_text with its key words.
+6. Citations: does every claim carry the [n] of the tool result it comes from?
 Use tools to check or fix anything. End with the list of problems and their fixes."""
 
 FINAL_REQUEST = """(Automatic step; this isn't from the user.) Now write the final answer for the user:
 fix every problem in your review, leave out everything marked UNSUPPORTED, and answer each part of
-the question. Be concise. Don't mention the review, the draft or this request, and don't add a
-references list."""
+the question. Cite every claim inline with the [n] numbers from the tool results, as in your draft
+(e.g. "The budget was 400 USD [2]."); an answer without them can't be checked. Be concise. Don't
+mention the review, the draft or this request, and don't write a references list yourself: it's
+added automatically from your [n] citations."""
 
 
 def chat_documents(chat_id: int, user_id: int):

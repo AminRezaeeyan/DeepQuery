@@ -33,8 +33,14 @@ def check_numbers(answer: str, expected: list[dict]) -> list[dict]:
     return results
 
 
+CONSULTED_MARKER = "**Sources consulted:**"
+
+
 def split_answer(text: str) -> tuple[str, dict[int, str]]:
     """Separates the answer body from the reference list the server appends."""
+    consulted = text.rfind(CONSULTED_MARKER)
+    if consulted != -1:
+        return text[:consulted].rstrip(), {}  # sources it read but didn't cite: not citations
     at = text.rfind(REF_MARKER)
     if at == -1:
         return text, {}

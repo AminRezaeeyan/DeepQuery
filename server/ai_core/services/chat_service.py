@@ -235,16 +235,26 @@ class ChatGenerationService:
             yield references
 
 
+REFERENCES_MARKER = "**References:**"
+CONSULTED_MARKER = "**Sources consulted:**"
+
+
 def references_text(answer: str, citation_map: dict) -> str:
     """
     The sources the answer cites (not every passage retrieved), under the
     numbers used in the text, as the "**References:**" block clients read.
+    An answer that used sources but cites none of them (smaller models sometimes
+    drop the [n]) still shows what it read, under "**Sources consulted:**".
     """
     cited = {int(n) for n in re.findall(r"\[(\d{1,3})\]", answer)}
     references = sorted((c for c in citation_map.values() if c["cite_id"] in cited), key=lambda c: c["cite_id"])
+    marker = REFERENCES_MARKER
+    if not references:
+        references = sorted(citation_map.values(), key=lambda c: c["cite_id"])
+        marker = CONSULTED_MARKER
     if not references:
         return ""
-    return "\n\n**References:**\n" + "".join(f"[{c['cite_id']}] {c['label']}\n" for c in references)
+    return f"\n\n{marker}\n" + "".join(f"[{c['cite_id']}] {c['label']}\n" for c in references)
 
 def untrusted_block(tag: str, text: str) -> str:
     # Neutralise closing tags inside the data so it can't end the block early.

@@ -158,3 +158,10 @@ def test_the_report_marks_partial_answers_and_shows_their_key_points(tmp_path):
     assert "| paper_fact | 🟡 partial | 3/4 | 0.75 |" in text
     assert "| paper_fact | ❌ | 0/2 |" in text
     assert "| Partial credit (share of key points met) | 58.3% |" in text
+
+
+def test_sources_consulted_are_not_counted_as_citations():
+    body, refs = grading.split_answer("Over budget by 159.29 USD.\n\n**Sources consulted:**\n[1] lab_notes.md\n")
+
+    assert body == "Over budget by 159.29 USD."
+    assert refs == {}

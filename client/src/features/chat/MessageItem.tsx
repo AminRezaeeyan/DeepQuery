@@ -49,10 +49,11 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /** One card per source; the page of each citation shows on its chip in the text. */
-function Sources({ refs, flashId }: { refs: Reference[]; flashId: number | null }) {
+function Sources({ refs, flashId, consulted }: { refs: Reference[]; flashId: number | null; consulted: boolean }) {
+  const title = consulted ? "Sources consulted" : "Sources";
   return (
-    <section className="sources" aria-label="Sources">
-      <h4 className="mono-label">Sources</h4>
+    <section className="sources" aria-label={title}>
+      <h4 className="mono-label">{title}</h4>
       <ol>
         {groupSources(refs).map((g) => {
           const inner = (
@@ -87,8 +88,9 @@ function Sources({ refs, flashId }: { refs: Reference[]; flashId: number | null 
 }
 
 function AssistantMessage({ message, status, onRetry }: { message: UIMessage; status: string; onRetry?: () => void }) {
-  const { body, references: listed } = splitAnswer(message.content);
-  const references = citedReferences(body, listed);
+  const { body, references: listed, consulted } = splitAnswer(message.content);
+  // Consulted sources aren't cited in the text, so they're shown as listed.
+  const references = consulted ? listed : citedReferences(body, listed);
   const [flash, setFlash] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -133,7 +135,7 @@ function AssistantMessage({ message, status, onRetry }: { message: UIMessage; st
           </div>
         )}
 
-        {!message.streaming && references.length > 0 && <Sources refs={references} flashId={flash} />}
+        {!message.streaming && references.length > 0 && <Sources refs={references} flashId={flash} consulted={consulted} />}
 
         {message.stopped && <p className="msg-note">Stopped. This partial answer isn’t saved to the chat.</p>}
 
