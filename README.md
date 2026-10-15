@@ -41,8 +41,8 @@ with the answer.
 | Start a research | Web and Wikipedia |
 | :---: | :---: |
 | <img src="docs/images/main.png" width="420" alt="The start screen with suggestions and the sources panel"/> | <img src="docs/images/web-search.png" width="420" alt="An answer from a 2022 Wikipedia revision, cited"/> |
-| **Images and documents together** | **Persian, with an image** |
-| <img src="docs/images/conflict.png" width="420" alt="A table screenshot checked against the paper and the lab notes"/> | <img src="docs/images/image-upload-and-persian.png" width="420" alt="A Persian question about a figure, answered in Persian"/> |
+| **Conflicting sources flagged** | **Persian, with an image** |
+| <img src="docs/images/conflict.png" width="420" alt="A table screenshot checked against the paper: the lab notes' 100x claim is flagged as unsupported"/> | <img src="docs/images/image-upload-and-persian.png" width="420" alt="A Persian question about a figure, answered in Persian"/> |
 | **Code and tables** | **Light theme** |
 | <img src="docs/images/tables-codes.png" width="420" alt="Answers render code blocks and tables"/> | <img src="docs/images/light-theme.png" width="420" alt="The light theme"/> |
 | **Admin: models, plans, activity** | |
