@@ -353,3 +353,22 @@ def test_thinking_time_is_not_mistaken_for_a_stalled_stream():
     assert REASONING_TIMEOUT > LLM_TIMEOUT
     client.with_options.assert_called_once_with(timeout=REASONING_TIMEOUT)
     assert client.with_options.return_value.chat.completions.create.call_args.kwargs["reasoning_effort"] == "high"
+
+
+def test_an_answer_that_cites_nothing_still_lists_the_sources_it_read():
+    from ai_core.services.chat_service import references_text
+    sources = {("doc", 1, "p. 6"): {"cite_id": 1, "label": "refined.pdf, p. 6"},
+               ("doc", 2, ""): {"cite_id": 2, "label": "lab_notes.md"}}
+
+    assert references_text("It was 159.29 USD over budget.", sources) == \
+        "\n\n**Sources consulted:**\n[1] refined.pdf, p. 6\n[2] lab_notes.md\n"
+    assert references_text("Over budget [2].", sources) == "\n\n**References:**\n[2] lab_notes.md\n"
+    assert references_text("Hello!", {}) == ""
+
+
+def test_the_final_request_keeps_inline_citations():
+    from ai_core.agent.prompts import CRITIQUE_REQUEST, FINAL_REQUEST
+
+    # "Don't add a references list" alone made small models drop their [n] citations too.
+    assert "Cite every claim inline with the [n] numbers" in FINAL_REQUEST
+    assert "carry the [n]" in CRITIQUE_REQUEST
