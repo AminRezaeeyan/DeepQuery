@@ -114,6 +114,7 @@ class Command(BaseCommand):
             meta.setdefault("reruns", []).append({
                 "questions": [q.id for q in questions], "git_commit": commit, "git_dirty": dirty,
                 "questions_file_sha256": questions_sha, "at": datetime.now().isoformat(timespec="seconds"),
+                "agent_reasoning_effort": settings.AGENT_REASONING_EFFORT or "default",
             })
         else:
             run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{commit}"
@@ -129,6 +130,7 @@ class Command(BaseCommand):
                 "agent_provider": agent_name,
                 "judge_provider": judge_name,
                 "embedding_provider": f"{embedding.name} ({embedding.model_name})" if embedding else None,
+                "agent_reasoning_effort": settings.AGENT_REASONING_EFFORT or "default",
                 "question_ids": [q.id for q in questions],
             }
             records = {}
