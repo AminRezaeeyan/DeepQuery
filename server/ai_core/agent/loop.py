@@ -42,7 +42,7 @@ def conversation_tokens(messages: list[dict]) -> int:
 
 class ResearchAgent:
     def __init__(self, provider, context: ToolContext, tools: list[dict], max_steps: int, token_budget: int,
-                 first_tool: str | None = None, review: bool = False):
+                 first_tool: str | None = None, review: bool = False, reasoning_effort: str | None = None):
         self.provider = provider
         # A tool the first turn must call, e.g. search_documents when documents are attached:
         # small models otherwise skip the documents and guess or go straight to the web.
@@ -54,6 +54,7 @@ class ResearchAgent:
         # Review: a draft answer that used tools is held back, and the model is asked to
         # check it against the tool results (and fix it, using tools if needed) once.
         self.review = review
+        self.reasoning_effort = reasoning_effort or None
         self.answer = ""
         self._pending = None  # a step event to send before the turn's first output
 
@@ -143,7 +144,8 @@ class ResearchAgent:
         """
         text, calls, streaming = "", None, choice == "none" and not hold
         self._streamed = False
-        for kind, value in self.provider.stream_turn(messages, self.tools, tool_choice=choice):
+        effort = {"reasoning_effort": self.reasoning_effort} if self.reasoning_effort else {}
+        for kind, value in self.provider.stream_turn(messages, self.tools, tool_choice=choice, **effort):
             if kind == "text":
                 text += value
                 if (streaming or (not hold and len(text) >= PREAMBLE_CHARS)) and self._pending:

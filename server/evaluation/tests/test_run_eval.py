@@ -179,7 +179,7 @@ class TestRerun:
         assert run["summary"]["questions"] == 2 and run["summary"]["correct"] == 1
         assert run["meta"]["reruns"][0]["questions"] == ["t2"]
         report_md = (run_dir / "report.md").read_text()
-        assert "- Re-run on " in report_md and ": t2" in report_md
+        assert "- Re-run on " in report_md and "reasoning effort default: t2" in report_md
         assert "[t2](answers/t2.md) (re-run)" in report_md
 
     def test_a_rerun_must_use_the_same_models(self, setup):

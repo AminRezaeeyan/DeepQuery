@@ -76,10 +76,13 @@ list of its problems:
    such as how each paper trained or set up the model.
 3. Numbers: is each from the right table, row, column and footnote marker (†, *), and copied
    exactly or computed with run_python? When checking whether figures agree, convert both ways
-   (e.g. hours to days and days to hours). Percentage differences are percentage points.
+   (e.g. hours to days and days to hours). Give a derived rate in the unit asked and in the other
+   common one (per hour and per second). Percentage differences are percentage points.
 4. Code: if asked whether output is correct, correct means matching what the code is meant to
    compute (its name, docstring, comments, the standard definition), never just matching its own
    implementation. Write an independent implementation of that definition in run_python and compare.
+   For any cutoff on indices or ranks, work out the smallest case by hand: with 0-based ranks, the
+   top 1 is rank 0 only, so "within the top k" means r < k; code using r <= k counts one too many.
 5. Missing: for anything the draft says isn't reported, run find_text with its key words.
 Use tools to check or fix anything. End with the list of problems and their fixes."""
 

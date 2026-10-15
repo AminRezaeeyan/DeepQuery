@@ -100,11 +100,13 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
         f"# Evaluation run {meta['run_id']}",
         "",
         f"- Commit: `{meta['git_commit']}`{' (uncommitted changes)' if meta['git_dirty'] else ''}",
-        f"- Agent model: {meta['agent_provider']} · Judge model: {meta['judge_provider'] or 'none'} · Embeddings: {meta['embedding_provider']}",
+        f"- Agent model: {meta['agent_provider']} (reasoning effort: {meta.get('agent_reasoning_effort', 'default')})"
+        f" · Judge model: {meta['judge_provider'] or 'none'} · Embeddings: {meta['embedding_provider']}",
         f"- Questions: {summary['questions']} · Duration: {meta['duration_s']} s",
         *[
             f"- Re-run on {r['at'][:16].replace('T', ' ')} at commit `{r['git_commit']}`"
-            f"{' (uncommitted changes)' if r['git_dirty'] else ''}: {', '.join(r['questions'])}"
+            f"{' (uncommitted changes)' if r['git_dirty'] else ''}"
+            f", reasoning effort {r.get('agent_reasoning_effort', 'default')}: {', '.join(r['questions'])}"
             for r in meta.get("reruns", [])
         ],
         "",
