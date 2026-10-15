@@ -11,6 +11,9 @@ drf-spectacular==0.29.0
 PyJWT==2.12.1
 google-auth==2.49.1
 
+# Serving (production WSGI server; threaded workers keep long streamed answers open)
+gunicorn==25.3.0
+
 # Database & Task Queue
 psycopg[binary]==3.3.3
 pgvector==0.4.2
