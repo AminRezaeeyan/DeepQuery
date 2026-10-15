@@ -19,8 +19,9 @@ export function splitAnswer(text: string): { body: string; references: Reference
     const m = line.trim().match(/^\[(\d+)\]\s+(.+)$/);
     if (!m) continue;
     const label = m[2].trim();
-    // "refined.pdf, p. 6" -> name "refined.pdf", location "p. 6"
-    const place = label.match(/^(.*), (p\. \d+|sheet: .+)$/);
+    // "refined.pdf, p. 6" -> name "refined.pdf", location "p. 6";
+    // "runs.xlsx (sheets: notes, runs)" -> name "runs.xlsx", location "sheets: notes, runs"
+    const place = label.match(/^(.*), (p\. \d+|sheet: .+)$/) ?? label.match(/^(.*) \((sheets: [^)]*)\)$/);
     const name = place ? place[1] : label;
     references.push({
       id: Number(m[1]),

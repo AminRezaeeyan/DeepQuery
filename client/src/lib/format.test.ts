@@ -62,3 +62,11 @@ describe("sources consulted", () => {
     expect(splitAnswer("Fast [1].\n\n**References:**\n[1] refined.pdf, p. 6\n").consulted).toBe(false);
   });
 });
+
+describe("spreadsheet references", () => {
+  it("name the file and keep the sheets as the location", () => {
+    const { references } = splitAnswer("Over budget [2].\n\n**References:**\n[2] runs.xlsx (sheets: notes, runs)\n");
+
+    expect(references.map((r) => [r.id, r.name, r.location])).toEqual([[2, "runs.xlsx", "sheets: notes, runs"]]);
+  });
+});
