@@ -267,3 +267,15 @@ def test_a_rerun_stopped_before_any_answer_leaves_the_run_unchanged(setup):
     assert "reruns" not in json.loads((run_dir / "run.json").read_text())["meta"] or \
         json.loads((run_dir / "run.json").read_text())["meta"]["reruns"] == []
     assert "Re-run on" not in (run_dir / "report.md").read_text()
+
+
+def test_a_reconstructed_rerun_entry_says_so(tmp_path):
+    from evaluation import report
+    meta = {"run_id": "r", "git_commit": "a", "git_dirty": False, "agent_provider": "x", "judge_provider": None,
+            "embedding_provider": None, "duration_s": 1, "question_ids": [],
+            "reruns": [{"questions": ["q07"], "git_commit": "b", "git_dirty": False, "at": "2026-10-15T13:48:00",
+                        "agent_reasoning_effort": "high", "stopped_early": True, "reconstructed": True}]}
+
+    report.write_report(tmp_path, meta, report.summarise([]), [], None)
+
+    assert "reasoning effort high (stopped early) (entry reconstructed from the saved answers): q07" in (tmp_path / "report.md").read_text()
