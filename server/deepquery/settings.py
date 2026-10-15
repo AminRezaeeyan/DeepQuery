@@ -88,6 +88,8 @@ TEMPLATES = [{
 LANGUAGE_CODE, TIME_ZONE = 'en-us', 'UTC'
 USE_I18N, USE_TZ = True, True
 STATIC_URL = 'static/'
+# `collectstatic` target for the admin's files; in Docker, nginx serves it at /static/.
+STATIC_ROOT = Path(config("STATIC_ROOT", default=str(BASE_DIR / "staticfiles")))
 
 # --- API & AUTH ---
 REST_FRAMEWORK = {
@@ -173,9 +175,9 @@ CODE_TIMEOUT = config("CODE_TIMEOUT", default=20, cast=int)  # seconds
 CODE_MEMORY_MB = config("CODE_MEMORY_MB", default=1024, cast=int)
 
 # --- UPLOADS ---
-# Uploads are stored under server/ (chat_images/, user_documents/) and never
-# served from a public URL: chat images go through /api/messages/<uuid>/image/.
-MEDIA_ROOT = BASE_DIR
+# Uploads are stored under MEDIA_ROOT (chat_images/, user_documents/; server/ by default)
+# and never served from a public URL: chat images go through /api/messages/<uuid>/image/.
+MEDIA_ROOT = Path(config("MEDIA_ROOT", default=str(BASE_DIR)))
 DOCUMENT_MAX_UPLOAD_BYTES = config("DOCUMENT_MAX_UPLOAD_MB", default=20, cast=int) * 1024 * 1024
 CHAT_IMAGE_MAX_UPLOAD_BYTES = config("CHAT_IMAGE_MAX_UPLOAD_MB", default=10, cast=int) * 1024 * 1024
 
