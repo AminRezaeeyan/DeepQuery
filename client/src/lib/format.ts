@@ -3,14 +3,19 @@ import type { Chat } from "./types";
 export type Reference = { id: number; label: string; url: string | null; name: string; location: string | null };
 
 const REF_MARKER = "**References:**";
+// Sent instead when an answer used sources but cites none of them: what the agent read.
+const CONSULTED_MARKER = "**Sources consulted:**";
 
 /** Splits a streamed answer into its body and the reference list the server appends. */
-export function splitAnswer(text: string): { body: string; references: Reference[] } {
-  const at = text.lastIndexOf(REF_MARKER);
-  if (at === -1) return { body: text, references: [] };
+export function splitAnswer(text: string): { body: string; references: Reference[]; consulted: boolean } {
+  const consultedAt = text.lastIndexOf(CONSULTED_MARKER);
+  const consulted = consultedAt !== -1;
+  const at = consulted ? consultedAt : text.lastIndexOf(REF_MARKER);
+  if (at === -1) return { body: text, references: [], consulted: false };
+  const marker = consulted ? CONSULTED_MARKER : REF_MARKER;
 
   const references: Reference[] = [];
-  for (const line of text.slice(at + REF_MARKER.length).split("\n")) {
+  for (const line of text.slice(at + marker.length).split("\n")) {
     const m = line.trim().match(/^\[(\d+)\]\s+(.+)$/);
     if (!m) continue;
     const label = m[2].trim();
@@ -25,7 +30,7 @@ export function splitAnswer(text: string): { body: string; references: Reference
       url: /^https?:\/\//i.test(name) ? name : null,
     });
   }
-  return { body: text.slice(0, at).trimEnd(), references };
+  return { body: text.slice(0, at).trimEnd(), references, consulted };
 }
 
 /** The references the answer actually cites (older answers listed every retrieved passage). */
