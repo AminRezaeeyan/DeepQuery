@@ -279,3 +279,12 @@ def test_text_files_get_one_number_and_pdf_pages_keep_their_own():
     assert registry.add(("doc", 1, ""), filename="notes.md") == 1
     assert registry.add(("doc", 3, "p. 6"), filename="refined.pdf", location="p. 6") == 2
     assert registry.add(("doc", 3, "p. 7"), filename="refined.pdf", location="p. 7") == 3
+
+
+@pytest.mark.django_db
+def test_asking_for_a_page_of_a_file_without_pages_reads_the_file(context):
+    add_document(context, "lab_notes.md", [{"label": None, "text": "Budget: 400 USD"}])
+
+    output = run_tool("read_document", {"name": "lab_notes.md", "part": "1"}, context)
+
+    assert output.text == "[1] (lab_notes.md)\nBudget: 400 USD"

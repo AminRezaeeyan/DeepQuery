@@ -215,7 +215,7 @@ class ReadDocument:
     def _rest(cls, segments, part, shown):
         """The requested pages that didn't fit, as "p. 4-12", or ""."""
         pages = cls._page_range(part) if part else None
-        if not pages or not shown or not shown[-1]["label"].startswith("p. "):
+        if not pages or not shown or not (shown[-1]["label"] or "").startswith("p. "):
             return ""
         last_shown = int(shown[-1]["label"].removeprefix("p. "))
         last_page = max([int(s["label"][3:]) for s in segments if (s["label"] or "").startswith("p. ")], default=0)
