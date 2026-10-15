@@ -108,7 +108,8 @@ def write_report(run_dir: Path, meta: dict, summary: dict, records: list[dict], 
             f"- Re-run on {r['at'][:16].replace('T', ' ')} at commit `{r['git_commit']}`"
             f"{' (uncommitted changes)' if r['git_dirty'] else ''}"
             f", reasoning effort {r.get('agent_reasoning_effort', 'default')}"
-            f"{' (stopped early)' if r.get('stopped_early') else ''}: {', '.join(r['questions'])}"
+            f"{' (stopped early)' if r.get('stopped_early') else ''}"
+            f"{' (entry reconstructed from the saved answers)' if r.get('reconstructed') else ''}: {', '.join(r['questions'])}"
             for r in meta.get("reruns", [])
         ],
         "",
