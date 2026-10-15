@@ -1,0 +1,89 @@
+# DeepQuery: the web app on http://localhost:8080 (admin at /admin/).
+#
+#   cp server/.env.example server/.env    # set SECRET_KEY at least
+#   docker compose up --build
+#   docker compose exec server python manage.py createsuperuser
+#
+# Settings come from server/.env; the values below point the containers at each other.
+# The database container uses DB_NAME, DB_USER and DB_PASSWORD from your shell or a root
+# .env file (defaults match server/.env.example); keep them in step with server/.env.
+
+x-server-env: &server-env
+  DB_HOST: db
+  DB_PORT: "5432"
+  CELERY_BROKER_URL: redis://redis:6379/0
+  DEBUG: ${DEBUG:-False}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,server}
+  CLIENT_URL: ${CLIENT_URL:-http://localhost:8080}
+  # bubblewrap needs privileges a container doesn't have by default; code runs in a
+  # limited subprocess inside the container instead (see docs/technical.md, "Sandbox").
+  CODE_SANDBOX: ${CODE_SANDBOX:-subprocess}
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${DB_NAME:-deepquery}
+      POSTGRES_USER: ${DB_USER:-deepquery_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-deepquery_dev}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+
+  server:
+    build: ./server
+    image: deepquery-server
+    env_file:
+      - path: server/.env
+        required: false
+    environment: *server-env
+    volumes:
+      - media:/data/media
+      - static:/data/static
+      - tiktoken:/data/tiktoken
+      - ./eval:/eval   # the benchmark: run_eval reads questions and sources, writes runs/
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    image: deepquery-server  # built by the server service
+    command: ["celery", "-A", "deepquery", "worker", "-l", "info"]
+    env_file:
+      - path: server/.env
+        required: false
+    environment: *server-env
+    volumes:
+      - media:/data/media
+      - tiktoken:/data/tiktoken
+    depends_on:
+      server:
+        condition: service_started
+      redis:
+        condition: service_started
+
+  client:
+    build:
+      context: ./client
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+    ports:
+      - "${PORT:-8080}:80"
+    volumes:
+      - static:/static:ro
+    depends_on:
+      - server
+
+volumes:
+  postgres:
+  media:
+  static:
+  tiktoken:
