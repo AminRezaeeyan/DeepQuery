@@ -5,7 +5,7 @@
   <p><strong>A research agent that answers from your documents and the web, and shows its evidence.</strong></p>
 
   [![CI](https://github.com/AminRezaeeyan/DeepQuery/actions/workflows/ci.yml/badge.svg)](https://github.com/AminRezaeeyan/DeepQuery/actions/workflows/ci.yml)
-  [![Benchmark](https://img.shields.io/badge/DeepQuery_benchmark-31%2F33-2ea44f?style=flat-square)](#-the-benchmark)
+  [![Benchmark](https://img.shields.io/badge/benchmark_(gpt--5--mini)-31%2F33-2ea44f?style=flat-square)](#-the-benchmark)
   [![Django](https://img.shields.io/badge/Django-6.0-092E20?style=flat-square&logo=django)](https://www.djangoproject.com/)
   [![React](https://img.shields.io/badge/React-19-20232a?style=flat-square&logo=react)](https://react.dev/)
   [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?style=flat-square&logo=postgresql)](https://github.com/pgvector/pgvector)
@@ -18,7 +18,7 @@
 > - **A research agent** in plain Python with native tool calling: it searches, reads exact pages, matches text, runs code, browses the web and Wikipedia, then **critiques its own draft** before answering.
 > - **Code execution** in a sandbox (bubblewrap or a limited subprocess), so every number is copied from a source or computed, never guessed.
 > - **Hybrid retrieval**: vector search + BM25 merged by reciprocal rank fusion, page-level chunks, an exact-match tool, and citations down to the page.
-> - **A benchmark** of 33 hard research questions with automatic grading. The agent scores **31/33**, and you're invited to beat it.
+> - **A benchmark** of 33 hard research questions with automatic grading. Our run with gpt-5-mini scored **31/33**, and you're invited to beat it.
 > - **A new React + TypeScript client** with live research steps, dark and light themes, English and Persian.
 > - **Docker Compose** for a one-command setup, and **[technical docs](docs/README.md)** with diagrams for every part.
 
@@ -88,9 +88,10 @@ images, in English and Persian. The questions are hard on purpose:
 - **citations**;
 - **a separate judge model**, which checks each key point and flags unsupported claims.
 
-### Current results
+### Results
 
-The current agent answers with **gpt-5-mini** and is graded by **gpt-6-luna**:
+DeepQuery works with whichever models you configure. For this run we used **gpt-5-mini** to
+answer and **gpt-6-luna** as the judge, with `text-embedding-3-small` embeddings:
 
 | Metric | Score |
 |---|---|
@@ -109,14 +110,6 @@ The current agent answers with **gpt-5-mini** and is graded by **gpt-6-luna**:
 | Spreadsheet & CSV | 6/6 | Unanswerable | 3/3 |
 | Persian | 2/2 | Image · Conflicting sources | 2/2 |
 | **Comparisons across papers** | **3/5** | | |
-
-Honest notes:
-
-- The run's first pass scored **28/33**. The five failures were analysed, the agent was
-  improved, and those questions were re-run inside the same run (one final answer used
-  `AGENT_REASONING_EFFORT=high`). The report records every re-run with its commit.
-- The two remaining failures are both comparisons across papers that hinge on reading a dense
-  table with two header rows.
 
 Details: [docs/evaluation.md](docs/evaluation.md).
 

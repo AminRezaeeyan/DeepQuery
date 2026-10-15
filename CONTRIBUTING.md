@@ -5,7 +5,7 @@ benchmark results are all welcome.
 
 ## Ways to help
 
-- **Beat the benchmark.** The agent scores 31/33 on the [DeepQuery benchmark](docs/evaluation.md).
+- **Beat the benchmark.** Our run with gpt-5-mini scored 31/33 on the [DeepQuery benchmark](docs/evaluation.md).
   The two misses are cross-paper comparisons over dense tables. Better table extraction,
   planning or a new tool could close the gap.
 - **Add tool calling to another provider.** Claude, Gemini and Ollama answer in a single pass
