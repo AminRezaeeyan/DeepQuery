@@ -53,8 +53,8 @@ def split_answer(text: str) -> tuple[str, dict[int, str]]:
 
 
 def source_of(label: str) -> str:
-    """The source behind a reference label: "refined.pdf, p. 6" -> "refined.pdf"."""
-    return re.sub(r", (p\. \d+|sheet: .+)$", "", label)
+    """The source behind a reference label: "refined.pdf, p. 6" or "runs.xlsx (sheets: notes)" -> the file."""
+    return re.sub(r"(, (p\. \d+|sheet: .+)| \(sheets: [^)]*\))$", "", label)
 
 
 def check_citations(body: str, references: dict[int, str], expected_files: list[str]) -> dict:

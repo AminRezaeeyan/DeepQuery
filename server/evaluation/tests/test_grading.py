@@ -165,3 +165,7 @@ def test_sources_consulted_are_not_counted_as_citations():
 
     assert body == "Over budget by 159.29 USD."
     assert refs == {}
+
+
+def test_a_spreadsheet_reference_names_its_file():
+    assert grading.source_of("runs.xlsx (sheets: notes, runs)") == "runs.xlsx"

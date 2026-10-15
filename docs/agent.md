@@ -172,9 +172,13 @@ sandbox isn't disabled.
 
 ## Citations
 
-`SourceRegistry` hands out citation numbers as tools return sources: one number per
-(document, page) for files, one per URL for the web. The same page always gets the same
-number within an answer, however many tools return it.
+`SourceRegistry` hands out citation numbers as tools return sources: **one per PDF page, one
+per file for everything else** (spreadsheets, CSV, text, code), and one per URL for the web.
+A page is what a reader needs to check a claim in a long paper; a spreadsheet is small, so
+numbering each sheet separately would make one source look like several. A spreadsheet's
+reference lists the sheets that were read (`runs.xlsx (sheets: notes, runs)`), and tool results
+still tell the model the exact sheet. The same source always gets the same number within an
+answer, however many tools return it.
 
 ```mermaid
 flowchart LR

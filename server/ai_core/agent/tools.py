@@ -117,7 +117,7 @@ class SearchDocuments:
         parts = []
         for doc, score, text, location in results:
             n = context.sources.add(("doc", doc.id, location), filename=doc.original_filename, url=doc.source_url, location=location)
-            parts.append(f"[{n}] ({context.sources.label(n)})\n{text.strip()}")
+            parts.append(f"{context.sources.header(n, location)}\n{text.strip()}")
         if not parts:
             return ToolOutput("No passages matched.", f'Searched documents for "{query}" · nothing found')
         return ToolOutput("\n\n".join(parts), f'Searched documents for "{query}" · {len(parts)} passages')
@@ -171,7 +171,7 @@ class ReadDocument:
                 n = context.sources.add(("doc", doc.id, ""), filename=doc.original_filename)
                 head = doc.extracted_text[:LONG_FILE_PREVIEW_CHARS].rsplit("\n", 1)[0]
                 return ToolOutput(
-                    f"[{n}] ({context.sources.label(n)})\n{head}\n[... the first {head.count(chr(10)) + 1} lines of "
+                    f"{context.sources.header(n)}\n{head}\n[... the first {head.count(chr(10)) + 1} lines of "
                     f"{len(doc.extracted_text.splitlines())}. Use run_python to work with the whole file "
                     f"(it's in the working directory as {doc.original_filename}).]",
                     f"Read the start of {doc.original_filename}",
@@ -183,7 +183,7 @@ class ReadDocument:
             if shown and size + len(text) > MAX_OUTPUT_CHARS - 300:
                 break  # whole pages only, and say where to go on, instead of cutting mid-page
             n = context.sources.add(("doc", doc.id, seg["label"] or ""), filename=doc.original_filename, location=seg["label"] or "")
-            parts.append(f"[{n}] ({context.sources.label(n)})\n{text}")
+            parts.append(f"{context.sources.header(n, seg['label'] or '')}\n{text}")
             shown.append(seg)
             size += len(text)
         rest = self._rest(segments, part, shown)
@@ -268,7 +268,7 @@ class FindText:
         parts = []
         for doc, location, around in matches[: self.MAX_MATCHES]:
             n = context.sources.add(("doc", doc.id, location), filename=doc.original_filename, location=location)
-            parts.append(f"[{n}] ({context.sources.label(n)}) {around}")
+            parts.append(f"{context.sources.header(n, location)} {around}")
         if len(matches) > self.MAX_MATCHES:
             parts.append(f"[... {len(matches) - self.MAX_MATCHES} more matches; add words to narrow it.]")
         return ToolOutput("\n".join(parts), f'Found "{text}" · {len(matches)} lines')

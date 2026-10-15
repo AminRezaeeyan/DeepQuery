@@ -257,3 +257,25 @@ class TestFindText:
         add_document(context, "notes.md", [{"label": None, "text": "بودجه: ۴۰۰ دلار\nکتابخانه ملی"}])
 
         assert "کتابخانه ملی" in run_tool("find_text", {"text": "كتابخانه"}, context).text
+
+
+def test_a_spreadsheet_gets_one_number_that_names_the_sheets_read():
+    registry = SourceRegistry()
+
+    runs = registry.add(("doc", 2, "sheet: runs"), filename="runs.xlsx", location="sheet: runs")
+    notes = registry.add(("doc", 2, "sheet: notes"), filename="runs.xlsx", location="sheet: notes")
+    whole = registry.add(("doc", 2, ""), filename="runs.xlsx")  # e.g. run_python on the whole file
+
+    assert runs == notes == whole == 1
+    assert registry.label(1) == "runs.xlsx (sheets: runs, notes)"
+    # Tool results still say which sheet they show.
+    assert registry.header(1, "sheet: notes") == "[1] (runs.xlsx, sheet: notes)"
+
+
+def test_text_files_get_one_number_and_pdf_pages_keep_their_own():
+    registry = SourceRegistry()
+
+    assert registry.add(("doc", 1, ""), filename="notes.md") == 1
+    assert registry.add(("doc", 1, ""), filename="notes.md") == 1
+    assert registry.add(("doc", 3, "p. 6"), filename="refined.pdf", location="p. 6") == 2
+    assert registry.add(("doc", 3, "p. 7"), filename="refined.pdf", location="p. 7") == 3
