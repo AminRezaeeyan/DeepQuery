@@ -31,13 +31,22 @@ specific Wikipedia revision, and checks its draft against what it read. The answ
 source for every claim, down to the page (`refined.pdf, p. 6`), and the steps that led to it stay
 with the answer.
 
+<p align="center">
+  <img src="docs/images/research-steps.png" alt="An answer with its research steps expanded, citation chips and the chat's sources" width="900"/>
+  <br/><sub>The agent searched the files, found the exact lines, ran Python and checked its draft. Every number links to its source.</sub>
+</p>
+
 <div align="center">
 
-| Chat with live research steps | Image questions |
+| Start a research | Web and Wikipedia |
 | :---: | :---: |
-| <img src="docs/images/main.png" width="400" alt="Main chat interface"/> | <img src="docs/images/image-upload.png" width="400" alt="Asking about an image"/> |
-| **Conflicting sources** | **Admin: models, plans, activity** |
-| <img src="docs/images/conflict.png" width="400" alt="Conflicting sources flagged"/> | <img src="docs/images/admin-panel.png" width="400" alt="Admin dashboard"/> |
+| <img src="docs/images/main.png" width="420" alt="The start screen with suggestions and the sources panel"/> | <img src="docs/images/web-search.png" width="420" alt="An answer from a 2022 Wikipedia revision, cited"/> |
+| **Images and documents together** | **Persian, with an image** |
+| <img src="docs/images/conflict.png" width="420" alt="A table screenshot checked against the paper and the lab notes"/> | <img src="docs/images/image-upload-and-persian.png" width="420" alt="A Persian question about a figure, answered in Persian"/> |
+| **Code and tables** | **Light theme** |
+| <img src="docs/images/tables-codes.png" width="420" alt="Answers render code blocks and tables"/> | <img src="docs/images/light-theme.png" width="420" alt="The light theme"/> |
+| **Admin: models, plans, activity** | |
+| <img src="docs/images/admin-panel.png" width="420" alt="The admin dashboard"/> | |
 
 </div>
 
