@@ -73,3 +73,26 @@ export function useWhenVisible(
     return () => io.disconnect();
   }, [ref, enabled, rootMargin]);
 }
+
+/**
+ * Calls `onSwitch` when the user moves to another chat, but not when the route
+ * changes because the current draft just became a chat (call `markCreated` with
+ * its id first): that's the same conversation, so e.g. an attached image stays.
+ */
+export function useChatSwitch(chatId: string | undefined, onSwitch: () => void) {
+  const created = useRef<string | null>(null);
+  const handler = useRef(onSwitch);
+  handler.current = onSwitch;
+
+  useEffect(() => {
+    if (chatId && chatId === created.current) {
+      created.current = null;
+      return;
+    }
+    handler.current();
+  }, [chatId]);
+
+  return (uuid: string) => {
+    created.current = uuid;
+  };
+}

@@ -4,7 +4,7 @@ import { ArrowDown, FileUp } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { displayTitle } from "../../lib/format";
-import { useMediaQuery, useStoredState, useWhenVisible } from "../../lib/hooks";
+import { useChatSwitch, useMediaQuery, useStoredState, useWhenVisible } from "../../lib/hooks";
 import type { Chat, Model, ResearchOptions, Subscription } from "../../lib/types";
 import { useToast } from "../../components/Toast";
 import { ChatHeader } from "./ChatHeader";
@@ -98,8 +98,9 @@ export function Workspace() {
   }, [query]);
 
   // ----- current chat -----
+  // Switching chats clears the attached image; a draft turning into a chat doesn't.
+  const markCreated = useChatSwitch(chatId, () => setImage(null));
   useEffect(() => {
-    setImage(null);
     if (!chatId) return setCurrent(null);
     const known = chats.find((c) => c.uuid === chatId);
     if (known) return setCurrent(known);
@@ -126,6 +127,7 @@ export function Workspace() {
       if (draft.temporary !== chat.is_temporary) patch.is_temporary = draft.temporary;
       if (Object.keys(patch).length) chat = await api.updateChat(chat.uuid, patch);
       upsertChat(chat);
+      markCreated(chat.uuid);
       navigate(`/c/${chat.uuid}`);
       return chat;
     })();
