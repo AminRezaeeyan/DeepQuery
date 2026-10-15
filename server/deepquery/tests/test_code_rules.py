@@ -52,3 +52,25 @@ def test_zarinpal_requests_have_a_timeout(settings):
 
     assert all(call.kwargs.get("timeout") for call in request.call_args_list)
     assert request.call_count == 2
+
+
+def test_installed_packages_match_the_pinned_requirements():
+    # A pin that drifts from what's installed can make requirements.txt uninstallable
+    # (huggingface_hub was pinned below what transformers needs) while every test passes.
+    from importlib.metadata import PackageNotFoundError, version
+
+    mismatched = []
+    for line in (SERVER / "requirements.txt").read_text().splitlines():
+        line = line.split("#")[0].strip()
+        if "==" not in line:
+            continue
+        name, pinned = line.split("==")
+        name = name.split("[")[0]
+        try:
+            installed = version(name)
+        except PackageNotFoundError:
+            mismatched.append(f"{name} (pinned {pinned}, not installed)")
+            continue
+        if installed != pinned:
+            mismatched.append(f"{name} (pinned {pinned}, installed {installed})")
+    assert not mismatched, ", ".join(mismatched)
