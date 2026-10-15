@@ -135,11 +135,18 @@ class Command(BaseCommand):
             }
             records = {}
 
-        started = time.monotonic()
+        started, done, stopped = time.monotonic(), [], False
         for i, question in enumerate(questions, 1):
             self.stdout.write(f"[{i}/{len(questions)}] {question.id} ({question.category}) ...", ending="")
             self.stdout.flush()
-            record = runner.run(question)
+            try:
+                record = runner.run(question)
+            except KeyboardInterrupt:
+                # Ctrl-C: keep what finished. Each answer is already saved; write the report for them.
+                self.stdout.write(self.style.WARNING(" stopped"))
+                stopped = True
+                break
+            done.append(question.id)
             if opts["rerun"]:
                 record["rerun"] = meta["reruns"][-1]["git_commit"]
             report.write_question(run_dir, record)
@@ -151,6 +158,12 @@ class Command(BaseCommand):
                 status = self.style.SUCCESS("correct") if g["correct"] else self.style.ERROR("incorrect")
             self.stdout.write(f" {status} (score {g['score']}, {record['timings'].get('answer_s')} s)")
 
+        if stopped:
+            if opts["rerun"]:
+                meta["reruns"][-1]["questions"] = done  # only what was actually re-run
+                meta["reruns"][-1]["stopped_early"] = True
+            else:
+                meta["stopped_early"] = True
         meta["duration_s"] = round(meta.get("duration_s", 0) + time.monotonic() - started, 1)
         meta["finished_at"] = datetime.now().isoformat(timespec="seconds")
         records = [records[qid] for qid in meta["question_ids"] if qid in records]
@@ -162,3 +175,5 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f"\nAccuracy {summary['correct']}/{summary['questions']} ({(summary['accuracy'] or 0) * 100:.1f}%). Results: {run_dir}"
         ))
+        if stopped:
+            raise CommandError(f"Stopped early after {len(done)} of {len(questions)} questions; the report covers those.")

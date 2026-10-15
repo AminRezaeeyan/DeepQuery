@@ -196,3 +196,57 @@ class TestRerun:
 
         with pytest.raises(CommandError, match="--rerun needs --only"):
             run_with(tmp_path, agent, "61", rerun=str(tmp_path / "runs" / "x"))
+
+
+def interrupted_stream():
+    calls = []
+
+    def stream(prepared, image_bytes=None, mime_type=None):
+        calls.append(1)
+        if len(calls) == 2:
+            raise KeyboardInterrupt  # Ctrl-C during the second question
+        yield {"type": "text", "text": "About 61 times faster."}
+    return stream
+
+
+def run_interrupted(tmp_path, agent, **options):
+    with patch.object(OpenAIEmbeddingProvider, "embed_documents", side_effect=lambda texts: [[0.1, 0.2, 0.3] for _ in texts]), \
+         patch.object(OpenAIEmbeddingProvider, "embed_query", return_value=[0.1, 0.2, 0.3]), \
+         patch.object(OpenAIEmbeddingProvider, "count_tokens", return_value=5), \
+         patch("evaluation.runner.ChatGenerationService") as service_cls, \
+         patch("evaluation.runner.provider_instance", return_value=FakeJudge()), \
+         pytest.raises(CommandError, match="Stopped early after 1 of 2"):
+        service_cls.return_value.prepare.return_value = {"agent": False, "messages": [], "citation_map": {}}
+        service_cls.return_value.answer_events.side_effect = interrupted_stream()
+        call_command("run_eval", questions=str(tmp_path / "questions.yaml"), sources=str(tmp_path / "sources"),
+                     out=str(tmp_path / "runs"), provider=str(agent.id), no_judge=True, **options)
+
+
+@pytest.mark.django_db
+class TestStoppingEarly:
+
+    def test_ctrl_c_still_writes_the_report_for_finished_questions(self, setup):
+        tmp_path, agent = setup
+        (tmp_path / "questions.yaml").write_text(TWO_QUESTIONS)
+
+        run_interrupted(tmp_path, agent)
+
+        [run_dir] = list((tmp_path / "runs").iterdir())
+        run = json.loads((run_dir / "run.json").read_text())
+        assert run["meta"]["stopped_early"] and run["summary"]["questions"] == 1
+        assert "Stopped early: 1 of 2 answered" in (run_dir / "report.md").read_text()
+        assert not Chat.all_objects.filter(title="eval t2").exists()  # the interrupted question's chat is cleaned up
+
+    def test_a_stopped_rerun_records_only_the_questions_it_reran(self, setup):
+        tmp_path, agent = setup
+        (tmp_path / "questions.yaml").write_text(TWO_QUESTIONS)
+        run_with(tmp_path, agent, "No idea.")
+        [run_dir] = list((tmp_path / "runs").iterdir())
+
+        run_interrupted(tmp_path, agent, rerun=str(run_dir), only="t1,t2")
+
+        run = json.loads((run_dir / "run.json").read_text())
+        assert run["meta"]["reruns"][-1]["questions"] == ["t1"] and run["meta"]["reruns"][-1]["stopped_early"]
+        assert run["summary"]["questions"] == 2  # t2 keeps its earlier result
+        assert json.loads((run_dir / "questions" / "t2.json").read_text())["agent"]["answer"] == "No idea."
+        assert "(stopped early): t1" in (run_dir / "report.md").read_text()
