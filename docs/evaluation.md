@@ -150,8 +150,8 @@ finished; a re-run stopped before any answer leaves no trace.
 
 ## Results
 
-The current agent, answering with **gpt-5-mini** and graded by **gpt-6-luna**, on
-`text-embedding-3-small` embeddings:
+DeepQuery works with whichever models you configure. For this run we used **gpt-5-mini** to
+answer and **gpt-6-luna** as the judge, with `text-embedding-3-small` embeddings:
 
 | Metric | Result |
 |---|---|
