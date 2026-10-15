@@ -82,6 +82,21 @@ so a mixed run stays readable as one.
    claims. Its verdict decides whether the answer is correct; the other checks show
    *where* a wrong answer went wrong.
 
+### Scoring
+
+Every answer is scored at three levels, strictest first:
+
+| Metric | An answer counts when | An answer with 3 of 4 key points |
+|---|---|---|
+| **Strict accuracy** (the headline) | every key point is met and nothing it claims is wrong | 0 |
+| **Key-point accuracy** | every key point is met (wrong side claims are ignored) | 0 |
+| **Partial credit** | the share of key points met, averaged over questions | 0.75 |
+
+The report marks each question ✅ (strictly correct), 🟡 partial (some key points met) or
+❌ (none), with its key points as "3/4", and counts the answers that contain unsupported
+claims. Unanswerable questions are graded the same way: their key points are declining clearly
+and not presenting another number as the answer.
+
 ## Results
 
 Every run is saved in `runs/<date>-<time>-<commit>/`:
