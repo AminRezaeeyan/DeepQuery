@@ -4,7 +4,7 @@ import type { Chat, ResearchOptions } from "../../lib/types";
 import { useChatSession } from "./useChatSession";
 
 const { api } = vi.hoisted(() => ({
-  api: { messages: vi.fn(), sendMessage: vi.fn(), editMessage: vi.fn() },
+  api: { messages: vi.fn(), sendMessage: vi.fn(), editMessage: vi.fn(), blob: vi.fn() },
 }));
 
 vi.mock("../../lib/api", async (importOriginal) => {
@@ -181,5 +181,30 @@ describe("research steps", () => {
       release();
       await sending;
     });
+  });
+});
+
+describe("editing a message with an image", () => {
+  it("keeps showing the image while the edited question is answered", async () => {
+    URL.createObjectURL = vi.fn(() => "blob:kept");
+    api.blob.mockResolvedValue(new Blob(["png"]));
+    const stream = controllableStream();
+    api.editMessage.mockResolvedValue(stream.response);
+    const question = { uuid: "q1", role: "user" as const, content: "Old question", image: "/api/messages/q1/image/", created_at: "2026-01-01T00:00:00Z" };
+    api.messages.mockResolvedValue({ next: null, previous: null, results: [question] });
+
+    const deps = { ensureChat: async () => CHAT, onChatTouched: vi.fn(), onError: vi.fn() };
+    const { result } = renderHook(() => useChatSession({ ...deps, chatId: "new-chat" }));
+    await waitFor(() => expect(result.current.messages).toHaveLength(1));
+
+    act(() => {
+      void result.current.edit(result.current.messages[0], "New question", OPTIONS);
+    });
+
+    // The image is fetched before the edit replaces the message on the server.
+    await waitFor(() => expect(api.editMessage).toHaveBeenCalled());
+    expect(api.blob.mock.invocationCallOrder[0]).toBeLessThan(api.editMessage.mock.invocationCallOrder[0]);
+    expect(result.current.messages[0]).toMatchObject({ content: "New question", localImage: "blob:kept" });
+    await act(async () => stream.finish("Answer."));
   });
 });

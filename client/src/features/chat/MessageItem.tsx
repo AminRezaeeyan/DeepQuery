@@ -9,6 +9,7 @@ import type { UIMessage } from "./useChatSession";
 /** Chat images need the auth header, so they're fetched rather than linked. */
 function AuthImage({ path }: { path: string }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let url: string | null = null;
@@ -19,7 +20,7 @@ function AuthImage({ path }: { path: string }) {
         url = URL.createObjectURL(blob);
         setSrc(url);
       },
-      () => undefined,
+      () => live && setFailed(true),
     );
     return () => {
       live = false;
@@ -27,6 +28,7 @@ function AuthImage({ path }: { path: string }) {
     };
   }, [path]);
 
+  if (failed) return <span className="hint">Image unavailable</span>;
   return src ? <img src={src} alt="Attached image" className="bubble-img" /> : <span className="bubble-img bubble-img--loading" />;
 }
 
@@ -169,6 +171,16 @@ function UserMessage({ message, onEdit }: { message: UIMessage; onEdit?: (text: 
     return (
       <article className="msg msg--user">
         <div className="msg-edit">
+          {(message.localImage || message.image) && (
+            <div className="msg-edit-image">
+              {message.localImage ? (
+                <img src={message.localImage} alt="Attached image" className="bubble-img" />
+              ) : (
+                <AuthImage path={message.image!} />
+              )}
+              <span className="hint">The image stays attached.</span>
+            </div>
+          )}
           <textarea
             className="input"
             dir="auto"

@@ -56,3 +56,21 @@ describe("research steps", () => {
     expect(screen.queryByText("Thinking")).toBeNull();
   });
 });
+
+describe("editing a question", () => {
+  it("shows the attached image, which stays attached", async () => {
+    const { fireEvent } = await import("@testing-library/react");
+    render(
+      <MessageItem
+        status=""
+        onEdit={vi.fn()}
+        message={{ uuid: "m1", role: "user", content: "What is this?", image: null, localImage: "blob:local", created_at: "2026-01-01T00:00:00Z" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+    expect(screen.getByAltText("Attached image")).toHaveProperty("src", "blob:local");
+    expect(screen.getByText("The image stays attached.")).toBeTruthy();
+  });
+});
