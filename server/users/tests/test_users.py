@@ -18,6 +18,7 @@ class TestCreateUser:
         
 
         assert response.status_code == 201
+        assert response.data["message"] == "User created successfully!"
         assert User.objects.count() - old_user_count == 1
 
         # Verify user
