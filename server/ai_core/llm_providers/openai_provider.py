@@ -1,7 +1,7 @@
 import base64
 
 import httpx
-from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, ToolCall, register_provider
+from ai_core.llm_providers.base import LLM_TIMEOUT, REASONING_TIMEOUT, LLMProviderBase, ToolCall, register_provider
 from openai import APIConnectionError, BadRequestError, OpenAI
 from ai_core.exceptions import ContextLimitExceededError, ProviderStalled
 
@@ -50,7 +50,8 @@ class OpenAIProvider(LLMProviderBase):
             }
             if reasoning_effort and self.accepts_reasoning_effort:
                 try:
-                    stream = self.client.chat.completions.create(**request, reasoning_effort=reasoning_effort)
+                    client = self.client.with_options(timeout=REASONING_TIMEOUT)
+                    stream = client.chat.completions.create(**request, reasoning_effort=reasoning_effort)
                 except BadRequestError as e:
                     if "reasoning" not in str(e).lower():
                         raise

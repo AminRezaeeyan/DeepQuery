@@ -313,6 +313,7 @@ def openai_provider():
 
 def test_openai_sends_the_reasoning_effort_only_when_asked():
     with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        client_cls.return_value.with_options.return_value = client_cls.return_value  # one mock client for both
         create = client_cls.return_value.chat.completions.create
         create.return_value = iter([])
         provider = openai_provider()
@@ -329,6 +330,7 @@ def test_a_model_that_rejects_reasoning_effort_is_asked_again_without_it():
 
     rejected = BadRequestError("Unsupported parameter: 'reasoning_effort'", response=httpx.Response(400, request=httpx.Request("POST", "http://x")), body=None)
     with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        client_cls.return_value.with_options.return_value = client_cls.return_value  # one mock client for both
         create = client_cls.return_value.chat.completions.create
         create.side_effect = [rejected, iter([]), iter([])]
         provider = openai_provider()
@@ -336,3 +338,18 @@ def test_a_model_that_rejects_reasoning_effort_is_asked_again_without_it():
         list(provider.stream_turn([{"role": "user", "content": "q"}], [], reasoning_effort="high"))
 
     assert [("reasoning_effort" in c.kwargs) for c in create.call_args_list] == [True, False, False]
+
+
+def test_thinking_time_is_not_mistaken_for_a_stalled_stream():
+    from ai_core.llm_providers.base import LLM_TIMEOUT, REASONING_TIMEOUT
+
+    with patch("ai_core.llm_providers.openai_provider.OpenAI") as client_cls:
+        client = client_cls.return_value
+        client.with_options.return_value.chat.completions.create.return_value = iter([])
+        client.chat.completions.create.return_value = iter([])
+        provider = openai_provider()
+        list(provider.stream_turn([{"role": "user", "content": "q"}], [], reasoning_effort="high"))
+
+    assert REASONING_TIMEOUT > LLM_TIMEOUT
+    client.with_options.assert_called_once_with(timeout=REASONING_TIMEOUT)
+    assert client.with_options.return_value.chat.completions.create.call_args.kwargs["reasoning_effort"] == "high"

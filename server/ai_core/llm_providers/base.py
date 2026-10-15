@@ -5,6 +5,9 @@ PROVIDER_REGISTRY = {}
 
 # Seconds. Streaming reads wait at most this long between chunks.
 LLM_TIMEOUT = 120
+# With a high reasoning effort a model can think for minutes before sending anything;
+# a shorter read timeout would take that silence for a stalled stream.
+REASONING_TIMEOUT = 600
 
 
 def register_provider(provider_name):
