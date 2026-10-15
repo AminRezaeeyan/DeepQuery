@@ -205,11 +205,16 @@ export function useChatSession({ chatId, ensureChat, onChatTouched, onError }: D
     async (message: UIMessage, content: string, opts: ResearchOptions) => {
       if (busy || !chatId) return;
       const assistantId = tempId();
+      // The edit replaces this message on the server, after which its image URL
+      // stops working; keep a local copy to show until the new message loads.
+      const localImage =
+        message.localImage ??
+        (message.image ? await api.blob(message.image).then((b) => URL.createObjectURL(b), () => undefined) : undefined);
       setMessages((m) => {
         const at = m.findIndex((x) => x.uuid === message.uuid);
         return [
           ...m.slice(0, at),
-          { ...message, content },
+          { ...message, content, localImage },
           { uuid: assistantId, role: "assistant", content: "", image: null, created_at: new Date().toISOString(), streaming: true },
         ];
       });
