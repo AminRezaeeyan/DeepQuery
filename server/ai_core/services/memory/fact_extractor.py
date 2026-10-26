@@ -79,6 +79,28 @@ class FactExtractor:
         r"\bI don'?t eat ([A-Za-z ]+)\b",
     ]
 
+    # Persian triggers. "\u200c" is the zero-width non-joiner that often sits
+    # inside verbs (می‌کنم), so each verb accepts it, a space, or nothing.
+    PERSIAN_FACT_PATTERNS = [
+        # Identity, age, origin
+        r"(اسمم|اسم من|نامم|نام من)",
+        r"[\d۰-۹]+\s*سال(مه|م|ه|ه‌ام)",
+        r"(ساکن|اهل|متولد)\s",
+        r"من\s.+\s?هستم",
+        # Work and study
+        r"(زندگی|کار|تحصیل)\s*می[\u200c ]?کنم",
+        r"(شغلم|شغل من|رشته[\u200c ]?ام|رشته من)",
+        r"(دانشجوی|فارغ[\u200c ]?التحصیل)",
+        # Preferences
+        r"(دوست دارم|دوست ندارم|عاشق|متنفرم|علاقه دارم|علاقه[\u200c ]?مندم|ترجیح می[\u200c ]?دهم)",
+        # Family
+        r"(همسرم|پسرم|دخترم|برادرم|خواهرم|پدرم|مادرم|فرزند|بچه[\u200c ]?هایم)",
+        # Skills, goals, health
+        r"(بلدم|یاد می[\u200c ]?گیرم|صحبت می[\u200c ]?کنم)",
+        r"(قصد دارم|هدفم|برنامه دارم)",
+        r"(حساسیت دارم|گیاه[\u200c ]?خوار|وگان)",
+    ]
+
     SYSTEM_PROMPT = """
 You extract **long-term personal facts** from user messages for memory storage.
 
@@ -133,7 +155,7 @@ null
 
     def _contains_fact(self, text: str) -> bool:
         """Simple regex-based pre-check to avoid unnecessary LLM calls."""
-        for pattern in self.FACT_PATTERNS:
+        for pattern in self.FACT_PATTERNS + self.PERSIAN_FACT_PATTERNS:
             if re.search(pattern, text, flags=re.IGNORECASE):
                 return True
         return False

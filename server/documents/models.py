@@ -33,6 +33,9 @@ class Document(models.Model):
     source_url = models.URLField(max_length=2000, blank=True, null=True)
     
     extracted_text = models.TextField(blank=True)
+    # The same text in labelled parts ([{"label": "p. 3", "text": ...}]), kept so
+    # re-embedding can still cite pages and sheets.
+    extracted_segments = models.JSONField(default=list, blank=True)
     
     status = models.CharField(max_length=20, choices=StatusChoices.choices, default=StatusChoices.PENDING)
     created_at = models.DateTimeField(auto_now_add=True)

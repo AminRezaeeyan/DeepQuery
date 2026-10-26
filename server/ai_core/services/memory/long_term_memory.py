@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Optional
 from ai_core.services.embedding_service import EmbeddingService
 from ai_core.tasks import extract_and_embed_facts_task
 from ai_core.models import MemoryFact
@@ -13,11 +13,15 @@ class LongTermMemoryService:
     - Formatting memory context for prompts
     """
 
+    # Below this similarity a memory is unrelated to the question. Matches the
+    # bar for web results (WebKnowledgeService.SCORE_THRESHOLD).
+    MIN_SCORE = 0.5
+
     def __init__(self, user_id, provider_id: Optional[int] = None, enabled=True):
         self.user_id = user_id
         self.provider_id = provider_id
         self.embedder = EmbeddingService(provider_id=provider_id)
-        self.enabled=True
+        self.enabled = enabled
 
     def store_from_message(self, chat_id, text):
         """
@@ -52,7 +56,7 @@ class LongTermMemoryService:
 
         filtered = [
             instance
-            for instance, score, text in results
+            for instance, score, text, location in results
             if score >= min_score and instance.user_id == self.user_id
         ]
 
@@ -72,7 +76,7 @@ class LongTermMemoryService:
         if not self.enabled:
             return ''
 
-        candidates = self.search(query=query, limit=max_candidates, min_score=0.1)
+        candidates = self.search(query=query, limit=max_candidates, min_score=self.MIN_SCORE)
 
         if not candidates or token_limit <= 0:
             return ""

@@ -5,4 +5,4 @@ class SubscriptionsConfig(AppConfig):
     name = 'subscriptions'
 
     def ready(self):
-        import subscriptions.signals
+        import subscriptions.signals  # noqa: F401  (registers signal handlers)

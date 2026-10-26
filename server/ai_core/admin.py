@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 from .models import (
@@ -9,8 +10,29 @@ from .models import (
     MemoryFact,
 )
 
+class SecretKeyForm(forms.ModelForm):
+    """API keys are write-only: the page never shows them, and blank keeps the current one."""
+
+    api_key = forms.CharField(
+        required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+        help_text="Leave empty to keep the current key.",
+    )
+
+    def clean_api_key(self):
+        return self.cleaned_data["api_key"] or (self.instance.api_key if self.instance.pk else "")
+
+
+class SecretKeyAdminMixin:
+    form = SecretKeyForm
+
+    @admin.display(description="Current key")
+    def api_key_hint(self, obj):
+        return f"••••{obj.api_key[-4:]}" if obj and obj.api_key else "Not set"
+
+
 @admin.register(LLMProvider)
-class LLMProviderAdmin(admin.ModelAdmin):
+class LLMProviderAdmin(SecretKeyAdminMixin, admin.ModelAdmin):
 
     list_display = (
         "name",
@@ -33,6 +55,7 @@ class LLMProviderAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = (
+        "api_key_hint",
         "created_at",
         "updated_at",
     )
@@ -48,6 +71,7 @@ class LLMProviderAdmin(admin.ModelAdmin):
 
         ("Connection", {
             "fields": (
+                "api_key_hint",
                 "api_key",
                 "base_url",
             )
@@ -119,7 +143,7 @@ class AITaskConfigAdmin(admin.ModelAdmin):
 
 
 @admin.register(EmbeddingProvider)
-class EmbeddingProviderAdmin(admin.ModelAdmin):
+class EmbeddingProviderAdmin(SecretKeyAdminMixin, admin.ModelAdmin):
 
     list_display = (
         "name",
@@ -145,6 +169,7 @@ class EmbeddingProviderAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = (
+        "api_key_hint",
         "created_at",
         "updated_at",
     )
@@ -165,6 +190,7 @@ class EmbeddingProviderAdmin(admin.ModelAdmin):
 
         ("Connection", {
             "fields": (
+                "api_key_hint",
                 "api_key",
                 "base_url",
             )
@@ -332,7 +358,6 @@ class MemoryFactAdmin(admin.ModelAdmin):
     search_fields = (
         "fact",
         "user__email",
-        "user__username",
     )
 
     readonly_fields = (

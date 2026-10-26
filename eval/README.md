@@ -1,0 +1,112 @@
+# DeepQuery evaluation set
+
+A fixed benchmark for checking whether the research agent answers correctly.
+Run it before and after each feature and compare the runs.
+
+## Layout
+
+```
+eval/
+  questions.yaml      the questions, reference answers and grading rules
+  sources/            files the questions are about
+  runs/               one folder per run, with every answer in full (local, not in git)
+```
+
+## Sources
+
+| File | What it is |
+|---|---|
+| `refined.pdf` | Ayoola et al., *ReFinED: An Efficient Zero-shot-capable Approach to End-to-End Entity Linking* (NAACL 2022, industry track) |
+| `blink.pdf` | Wu et al., *Scalable Zero-shot Entity Linking with Dense Entity Retrieval* (EMNLP 2020) |
+| `nil-prediction.pdf` | Zhu et al., *Learn to Not Link: Exploring NIL Prediction in Entity Linking* (Findings of ACL 2023) |
+| `reproduction_runs.xlsx` | A fictional lab's reproduction runs: F1 per system, dataset and seed, GPU hours and prices, with failed runs to exclude |
+| `nil_audit.csv` | 240 mentions (English and Persian) with gold labels and two models' predictions |
+| `nil_threshold.py`, `recall_at_k.py`, `latency_estimate.ts` | Short programs whose output the agent has to work out |
+| `lab_notes.md`, `yaddasht-ha.md` | Meeting notes in English and Persian (the English notes contain a claim the papers contradict) |
+| `throughput_chart.png`, `refined_table5.png` | A bar chart and a screenshot of a paper table, attached to questions as images |
+
+Everything except the papers is fictional: it describes a made-up lab reproducing the
+papers, so the answers can only come from these files. The files are fixed and committed;
+the reference answers were computed from them.
+
+## Questions
+
+33 questions in English and Persian: facts from one paper, comparisons across papers,
+calculations, spreadsheet and CSV statistics, code output, images, web search, and
+questions the sources can't answer (the agent should say so). Each question lists the
+capabilities it needs (`requires`), so a low score can be traced to a missing feature,
+such as running code or computing over a table, rather than a bug.
+
+## Running it
+
+From `server/`, with the database, Redis and your providers configured:
+
+```bash
+python manage.py run_eval                                  # every question
+python manage.py run_eval --only q01,q14                   # a few questions
+python manage.py run_eval --judge-provider "gapgpt-gpt-6-luna"   # choose the grading model
+```
+
+Each question gets a fresh temporary chat for a dedicated `eval-runner@deepquery.local`
+user (so long-term memory is never read or written), its sources are uploaded and indexed
+through the normal document pipeline, and the question goes through the same answer
+pipeline as the web app. Afterwards the chat, its documents and their files are deleted
+(`--keep-data` keeps them). A run costs real API calls: one answer per question, a web
+search query where web search is on, and one judge call.
+
+The agent answers with the default chat provider (`--provider` to change it). The judge
+defaults to the same provider; pass a stronger model with `--judge-provider` for fairer
+grades. `--no-judge` grades with the automatic checks only.
+
+To run some questions again inside an existing run (after fixing what made them fail),
+pass the run and the questions:
+
+```bash
+python manage.py run_eval --rerun ../eval/runs/<run> --only q07,q20 \
+    --provider "gapgpt-gpt-5-mini" --judge-provider "gapgpt-gpt-6-luna"
+```
+
+Their results replace the old ones and the report is rebuilt from all questions. The
+models must match the run's. Each re-run is listed at the top of `report.md` and in
+`run.json` (`meta.reruns`) with its commit, and re-run questions are marked in the table,
+so a mixed run stays readable as one.
+
+## Grading
+
+1. **Numbers** – every expected value must appear in the answer, within its tolerance
+   (Persian digits and separators are understood).
+2. **Retrieval** – did the passages a question needs (its `evidence`) reach the model?
+   This is scored on the text actually put in the prompt, not just which files were used.
+3. **Citations** – does every `[n]` exist, and does the answer cite the right source?
+4. **Judge** – the judge model checks each key point and lists wrong or unsupported
+   claims. Its verdict decides whether the answer is correct; the other checks show
+   *where* a wrong answer went wrong.
+
+### Scoring
+
+Every answer is scored at three levels, strictest first:
+
+| Metric | An answer counts when | An answer with 3 of 4 key points |
+|---|---|---|
+| **Strict accuracy** (the headline) | every key point is met and nothing it claims is wrong | 0 |
+| **Key-point accuracy** | every key point is met (wrong side claims are ignored) | 0 |
+| **Partial credit** | the share of key points met, averaged over questions | 0.75 |
+
+The report marks each question ✅ (strictly correct), 🟡 partial (some key points met) or
+❌ (none), with its key points as "3/4", and counts the answers that contain unsupported
+claims. Unanswerable questions are graded the same way: their key points are declining clearly
+and not presenting another number as the answer.
+
+## Results
+
+Every run is saved in `runs/<date>-<time>-<commit>/`:
+
+```
+report.md              summary: accuracy, by category and capability, every question
+run.json               the same numbers as JSON, plus models, commit and timings
+answers/<id>.md        the agent's full answer, the reference, and the judge's notes
+questions/<id>.json    everything: indexed documents and extracted text, the full prompt,
+                       retrieved sources, web pages fetched, timings, raw judge reply
+```
+
+`report.md` compares the run with the previous one, so run it before and after a change.

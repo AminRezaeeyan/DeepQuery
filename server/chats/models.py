@@ -47,6 +47,26 @@ class Chat(models.Model):
         # soft delete cascade
         self.messages.update(is_deleted=True)
 
+    def restore(self):
+        if not self.is_deleted:
+            return
+
+        self.is_deleted = False
+        self.deleted_at = None
+        self.save(update_fields=["is_deleted", "deleted_at"])
+
+        # Undo the cascade above, but keep what an edit replaced hidden:
+        # the edited question and the answer that followed it.
+        messages = list(Message.all_objects.filter(chat=self).order_by("created_at"))
+        restore_ids = [
+            msg.id
+            for prev, msg in zip([None] + messages, messages)
+            if msg.is_deleted
+            and not msg.edited_at
+            and not (msg.role == Message.Role.ASSISTANT and prev and prev.edited_at)
+        ]
+        Message.all_objects.filter(id__in=restore_ids).update(is_deleted=False)
+
     def __str__(self):
         return f"Chat {self.uuid}"
     
@@ -82,6 +102,8 @@ class Message(models.Model):
     content = models.TextField()
 
     image = models.ImageField(upload_to='chat_images/', blank=True, null=True)
+    # The research agent's steps for an assistant message: [{"tool", "arguments", "summary"}].
+    trace = models.JSONField(default=list, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     

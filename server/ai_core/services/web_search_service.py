@@ -1,13 +1,20 @@
+import ipaddress
+import logging
+import re
+import socket
+from urllib.parse import urljoin, urlparse
+
 import requests
 from bs4 import BeautifulSoup
-import re
+from ddgs import DDGS
 
 from django.conf import settings
 
 from ai_core.services.llm_service import LLMService
-from ai_core.services.token_service import TokenService
 from documents.models import Document
 from .embedding_service import EmbeddingService
+
+logger = logging.getLogger(__name__)
 
 URL_REGEX = r"(https?://[^\s]+)"
 
@@ -46,67 +53,150 @@ class WebSearchQueryGenerator:
     
 
 
+class UnsafeURL(Exception):
+    pass
+
+
+def check_public_url(url: str) -> None:
+    """
+    Raises UnsafeURL unless url is http(s) and its host resolves only to
+    public addresses. Stops prompts from making the server fetch internal
+    services, cloud metadata endpoints or localhost.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        raise UnsafeURL(f"Only http and https URLs can be fetched: {url}")
+
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+    except socket.gaierror:
+        raise UnsafeURL(f"Could not resolve {parsed.hostname}")
+
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0].split("%")[0])
+        if address.version == 6 and address.ipv4_mapped:
+            address = address.ipv4_mapped
+        if not address.is_global:
+            raise UnsafeURL(f"{parsed.hostname} resolves to a non-public address")
+
+
+# Sites like Wikipedia reject requests' default User-Agent with 403.
+FETCH_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; DeepQuery/0.1; research assistant)"}
+
+
+def html_to_text(html: str) -> str:
+    """
+    Page text that keeps its structure: table rows as "a | b | c", list items as
+    "- item", headings as "## title". Plain get_text() put every table cell on
+    its own line, so rows (e.g. a year and an album) came apart.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script", "style", "nav", "footer", "noscript"]):
+        tag.decompose()
+    # Wikipedia's edit links and citation markers ([12]).
+    for tag in soup.select(".mw-editsection, sup.reference, .reference, .noprint"):
+        tag.decompose()
+    for row in soup.find_all("tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["th", "td"])]
+        row.replace_with(soup.new_string("\n" + " | ".join(c for c in cells if c) + "\n"))
+    for item in soup.find_all("li"):
+        item.insert_before(soup.new_string("\n- "))
+    for level in range(1, 7):
+        for heading in soup.find_all(f"h{level}"):
+            heading.insert_before(soup.new_string("\n## "))
+            heading.insert_after(soup.new_string("\n"))
+    text = soup.get_text()
+    text = re.sub(r"[ \t\xa0]+", " ", text)
+    text = re.sub(r" *\n[ \n]*", "\n", text)
+    return text.strip()
+
+
 class WebPageFetcher:
+    MAX_REDIRECTS = 3
+    MAX_BYTES = 2_000_000
+    TIMEOUT = (5, 10)
+    ALLOWED_TYPES = ("text/html", "text/plain", "application/xhtml+xml")
 
     def fetch(self, url: str) -> str:
         try:
-            res = requests.get(url, timeout=5)
-            res.raise_for_status()
-
-            soup = BeautifulSoup(res.text, "html.parser")
-
-            for tag in soup(["script", "style", "nav", "footer"]):
-                tag.decompose()
-
-            text = soup.get_text(separator="\n")
-            text = re.sub(r'[ \t]+', ' ', text)
-            text = re.sub(r'\n+', '\n', text)
-
-
-            return text[:20000]
-
-        except Exception:
+            res = self._get(url)
+            html = self._read_limited(res)
+        except (UnsafeURL, requests.RequestException) as e:
+            logger.info("Skipped %s: %s", url, e)
             return ""
 
-class SerperProvider:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.url = "https://google.serper.dev/search"
+        return html_to_text(html)[:20000]
 
-    def search(self, query: str):
-        payload = {"q": f"{query}"} 
-        headers = {
-            "X-API-KEY": self.api_key,
-            "Content-Type": "application/json"
-        }
-        response = requests.post(self.url, json=payload, headers=headers)
-        response.raise_for_status()
+    def _get(self, url: str):
+        # Redirects are followed by hand so every hop is checked.
+        for _ in range(self.MAX_REDIRECTS + 1):
+            check_public_url(url)
+            res = requests.get(url, headers=FETCH_HEADERS, timeout=self.TIMEOUT, allow_redirects=False, stream=True)
+            if res.is_redirect:
+                url = urljoin(url, res.headers["Location"])
+                res.close()
+                continue
+            res.raise_for_status()
+            content_type = res.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            if content_type and content_type not in self.ALLOWED_TYPES:
+                res.close()
+                raise UnsafeURL(f"Unsupported content type {content_type}")
+            return res
+        raise UnsafeURL("Too many redirects")
 
-        data = response.json()
-        results = []
+    def _read_limited(self, res) -> str:
+        chunks, size = [], 0
+        for chunk in res.iter_content(chunk_size=65536):
+            size += len(chunk)
+            if size > self.MAX_BYTES:
+                break
+            chunks.append(chunk)
+        res.close()
+        return b"".join(chunks).decode(res.encoding or "utf-8", errors="replace")
 
-        for item in data.get("organic", [])[:5]:
-            results.append({
-                "title": item.get("title"),
-                "url": item.get("link"),
-                "snippet": item.get("snippet"),
-            })
-        return results
+class DuckDuckGoProvider:
+    """
+    Web search through the ddgs library: free and keyless. It tries the backends
+    in WEB_SEARCH_BACKENDS in order until one returns results, so search still
+    works where one engine is blocked or rate-limited.
+    """
+
+    def __init__(self, backends: str, timeout: int):
+        self.backends = backends
+        self.timeout = timeout
+
+    def search(self, query: str, max_results: int = 5):
+        # One backend at a time, in order: ddgs groups engines that share an index
+        # (DuckDuckGo and Yahoo both use Bing's) and won't fall through between them.
+        error = None
+        for backend in [b.strip() for b in self.backends.split(",") if b.strip()]:
+            try:
+                results = DDGS(timeout=self.timeout).text(query, max_results=max_results, backend=backend)
+            except Exception as e:  # blocked, rate-limited or no results: try the next backend
+                error = e
+                continue
+            hits = [
+                {"title": item.get("title"), "url": item.get("href"), "snippet": item.get("body")}
+                for item in results
+                if item.get("href")
+            ]
+            if hits:
+                return hits
+        if error:
+            raise error
+        return []
+
 
 class WebSearchService:
     def __init__(self):
-        api_key = getattr(settings, "SERPER_API_KEY", None)
-        if not api_key:
-            raise ValueError("SERPER_API_KEY is not set.")
-        self.provider = SerperProvider(api_key)
+        self.provider = DuckDuckGoProvider(settings.WEB_SEARCH_BACKENDS, settings.WEB_SEARCH_TIMEOUT)
 
-    def search(self, query: str):
+    def search(self, query: str, max_results: int = 5):
         try:
-            return self.provider.search(query)
+            return self.provider.search(query, max_results=max_results)
         except Exception as e:
-            print(f"Search error: {e}")
+            logger.warning("Web search failed: %s", e)
             return []
-
 
 
 class WebKnowledgeService:
@@ -124,7 +214,8 @@ class WebKnowledgeService:
     def gather_and_embed(self, prompt: str) -> None:
         """Fetches, cleans, saves to DB, and embeds web pages."""
 
-        urls_to_process = extract_urls(prompt)
+        # Cap how many pages one prompt can make the server fetch.
+        urls_to_process = extract_urls(prompt)[:self.MAX_SEARCH_RESULTS]
 
         # If no explicit URLs, generate query and search
         if not urls_to_process:
@@ -135,7 +226,7 @@ class WebKnowledgeService:
         for url in urls_to_process:
             page_text = self.fetcher.fetch(url)
 
-            print(f"Fetched {len(page_text)} chars from {url}")
+            logger.info("Fetched %d chars from %s", len(page_text), url)
             if not page_text:
                 continue
 

@@ -40,6 +40,9 @@ server/.env
 # Django specific
 server/db.sqlite3
 server/media/
+# Uploaded files (Message.image and Document.file upload paths)
+server/chat_images/
+server/user_documents/
 server/staticfiles/
 
 # Testing
@@ -68,3 +71,6 @@ client/.env.production.local
 client/npm-debug.log*
 client/yarn-debug.log*
 client/yarn-error.log*
+
+# Evaluation runs: kept locally, never committed
+eval/runs/

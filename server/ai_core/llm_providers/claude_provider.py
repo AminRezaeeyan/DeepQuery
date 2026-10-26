@@ -1,7 +1,10 @@
+import base64
+
 import anthropic
 
-from ai_core.llm_providers.base import LLMProviderBase, register_provider
+from ai_core.llm_providers.base import LLM_TIMEOUT, LLMProviderBase, register_provider, split_system_messages
 from ai_core.exceptions import ContextLimitExceededError
+from ai_core.services.token_service import TokenService
 
 
 @register_provider("claude")
@@ -11,27 +14,38 @@ class ClaudeProvider(LLMProviderBase):
         super().__init__(provider_config)
 
         self.client = anthropic.Anthropic(
-            api_key=provider_config.api_key
+            api_key=provider_config.api_key,
+            timeout=LLM_TIMEOUT,
         )
 
         self.model = provider_config.model_name
 
-    def stream(self, messages):
+    def stream(self, messages, image_bytes=None, mime_type=None):
 
-        system_prompt = None
-        chat_messages = []
+        system_prompt, chat_messages = split_system_messages(messages)
+        chat_messages = [dict(m) for m in chat_messages]
 
-        for m in messages:
-            if m["role"] == "system":
-                system_prompt = m["content"]
-            else:
-                chat_messages.append(m)
+        if image_bytes and mime_type:
+            for message in reversed(chat_messages):
+                if message["role"] == "user":
+                    message["content"] = [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": base64.b64encode(image_bytes).decode("utf-8"),
+                            },
+                        },
+                        {"type": "text", "text": message["content"]},
+                    ]
+                    break
 
         try:
             with self.client.messages.stream(
                 model=self.model,
-                max_tokens=1024,
-                system=system_prompt,
+                max_tokens=TokenService.get_output_reserve(self.provider_config.max_context_tokens),
+                system=system_prompt or anthropic.NOT_GIVEN,
                 messages=chat_messages
             ) as stream:
 

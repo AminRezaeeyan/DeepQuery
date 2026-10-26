@@ -1,13 +1,16 @@
+import functools
 from datetime import timedelta
 from django.conf import settings
-from django.urls import reverse
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import F
 from django.core.exceptions import ObjectDoesNotExist
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from .models import Plan, UserSubscription, Payment, UserUsage
-from chats.models import Message
 from zarinpal import ZarinPal
+
+# Seconds per request to the payment gateway.
+ZARINPAL_TIMEOUT = 15
 
 class SubscriptionLimitExceeded(PermissionDenied):
     pass
@@ -25,7 +28,11 @@ def get_zarinpal():
         sandbox=settings.ZARINPAL_SANDBOX,
         access_token=settings.ZARINPAL_ACCESS_TOKEN
     )
-    return ZarinPal(config)
+    zarinpal = ZarinPal(config)
+    # The SDK's sessions have no timeout; give every request one.
+    for session in (zarinpal.http_client, zarinpal.graphql_client):
+        session.request = functools.partial(session.request, timeout=ZARINPAL_TIMEOUT)
+    return zarinpal
 
 
 class SubscriptionService:
@@ -39,7 +46,7 @@ class SubscriptionService:
             pass
         
         # Fallback to free plan if no active subscription
-        free_plan = Plan.objects.get(name="Free")
+        free_plan = Plan.objects.get(name=Plan.PlanType.FREE)
         return free_plan
     
     @staticmethod
@@ -57,52 +64,44 @@ class SubscriptionService:
             
         return usage
     
-    @staticmethod
-    def check_limit(user, limit_field):
-        plan = SubscriptionService.get_user_plan(user)
-        usage = SubscriptionService.get_usage(user)
-
-        plan_limit = getattr(plan, f'daily_{limit_field}')
-        usage_value = getattr(usage, f"{limit_field.replace('_limit', '')}_count")
-
-        if usage_value >= plan_limit:
-            raise SubscriptionLimitExceeded(
-                f"You have reached your {limit_field.replace('_limit', '')} count "
-                f"({plan_limit}). Upgrade your plan."
-            )
-
-    @staticmethod
-    def check_message_limit(user):
-        SubscriptionService.check_limit(user, "message_limit")
-
-    @staticmethod
-    def check_document_limit(user):
-        SubscriptionService.check_limit(user, "document_limit")
-
-    @staticmethod
-    def check_image_limit(user):
-        SubscriptionService.check_limit(user, "image_limit")
-
+    RESOURCES = ("message", "document", "image")
 
     @staticmethod
     @transaction.atomic
-    def increment_usage(user, resource_type):
-        usage = SubscriptionService.get_usage(user)
-
-        if resource_type == "message":
-            usage.message_count += 1
-        elif resource_type == "document":
-            usage.document_count += 1
-        elif resource_type == "image":
-            usage.image_count += 1
-        else:
+    def consume(user, resource):
+        """
+        Counts one use of `resource` against today's limit, or raises
+        SubscriptionLimitExceeded. Checking and counting happen under a row
+        lock, so parallel requests can't both take the last slot.
+        """
+        if resource not in SubscriptionService.RESOURCES:
             raise ValidationError("Invalid resource type")
 
-        usage.save()
+        SubscriptionService.get_usage(user)
+        usage = UserUsage.objects.select_for_update().get(user=user)
+        plan = SubscriptionService.get_user_plan(user)
+
+        limit = getattr(plan, f"daily_{resource}_limit")
+        field = f"{resource}_count"
+
+        if getattr(usage, field) >= limit:
+            raise SubscriptionLimitExceeded(
+                f"You have reached your daily {resource} limit ({limit}). Upgrade your plan."
+            )
+
+        UserUsage.objects.filter(pk=usage.pk).update(**{field: F(field) + 1})
 
     @staticmethod
-    def initiate_zarinpal_payment(user, plan, request):
-        callback_url = request.build_absolute_uri(reverse('payment-verify'))
+    def refund(user, resource):
+        """Gives back a use when the request it paid for didn't complete."""
+        field = f"{resource}_count"
+        UserUsage.objects.filter(user=user, **{f"{field}__gt": 0}).update(**{field: F(field) - 1})
+
+    @staticmethod
+    def initiate_zarinpal_payment(user, plan):
+        # ZarinPal sends the user back to the client, which verifies the
+        # payment through the API and shows the result.
+        callback_url = f"{settings.CLIENT_URL.rstrip('/')}/payment/result"
 
         payment = Payment.objects.create(
             user=user,
@@ -118,10 +117,6 @@ class SubscriptionService:
             "amount": int(plan.price), 
             "callback_url": callback_url, 
             "description": f"Subscription for {plan.name} plan", 
-            "mobile": "09123456789",  
-            "email": "customer@example.com",  
-            "cardPan": ["6219861034529007", "5022291073776543"], 
-            "referrer_id": "affiliate123", 
             })
 
             if "data" in response and "authority" in response["data"]:
@@ -152,6 +147,11 @@ class SubscriptionService:
         if status != "OK":
             raise ValidationError("Payment was canceled by the user.")
 
+        # Reloading the result page verifies again: report the earlier success.
+        done = Payment.objects.select_related("plan").filter(authority=authority, status=Payment.Status.SUCCESS).first()
+        if done:
+            return {"message": "Payment successful. Subscription updated.", "ref_id": str(done.ref_id), "plan": done.plan.name}
+
         try:
             payment = Payment.objects.get(authority=authority, status=Payment.Status.PENDING)
         except Payment.DoesNotExist:
@@ -176,18 +176,13 @@ class SubscriptionService:
                 user = payment.user
                 plan = payment.plan
 
-                # Deactivate any existing active subscriptions for this user
-                UserSubscription.objects.filter(user=user, is_active=True).update(is_active=False)
-
-                # Create the new subscription
-                UserSubscription.objects.create(
+                # A user has exactly one subscription row: move it to the paid plan.
+                now = timezone.now()
+                UserSubscription.objects.update_or_create(
                     user=user,
-                    plan=plan,
-                    start_date=timezone.now().date(),
-                    end_date=timezone.now().date() + timedelta(days=30),
-                    is_active=True
+                    defaults={"plan": plan, "start_date": now, "end_date": now + timedelta(days=30)},
                 )
-                return {"message": "Payment successful. Subscription updated.", "ref_id": payment.ref_id}
+                return {"message": "Payment successful. Subscription updated.", "ref_id": str(payment.ref_id), "plan": plan.name}
             else:
                 payment.status = Payment.Status.FAILED
                 payment.save()

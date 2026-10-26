@@ -1,0 +1,735 @@
+# DeepQuery evaluation set.
+#
+# Each question runs in a fresh chat: the files in `sources` are uploaded and
+# indexed first, `image` (if any) is attached to the message, and web search
+# is on only when `web_search` is true. Answers are graded by `grading`:
+#   numbers    every listed value must appear (within its absolute tolerance)
+#   key_points the grader model checks each point is covered correctly
+#   abstain    the answer must say the sources don't contain this
+# `cite` lists the sources a good answer cites; `evidence` lists, per source,
+# passages that must reach the model for the question to be answerable
+# (retrieval is scored on these); `requires` lists the
+# capabilities the question needs, so the report can separate missing
+# features (e.g. computation, code execution) from bugs.
+#
+# Paper numbers are from the PDFs in sources/. Answers about the other files
+# were computed from those files.
+
+- id: q01
+  category: paper_fact
+  language: en
+  question: >
+    How many parameters does ReFinED have in total, and how is that number split between
+    the RoBERTa-base part and the rest of the model?
+  sources: [refined.pdf]
+  answer: >
+    About 154M parameters: roughly 123M in the RoBERTa-base architecture and about 31M for
+    the additional description encoder and output layers.
+  grading:
+    numbers: [{value: 154, tol: 1}, {value: 123, tol: 1}, {value: 31, tol: 1}]
+    key_points:
+      - Total of about 154 million parameters
+      - About 123 million come from RoBERTa-base
+      - About 31 million are the description encoder and output layers
+  cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["approximately 154M parameters"]
+  requires: [retrieval]
+
+- id: q02
+  category: paper_fact
+  language: en
+  question: >
+    In the BLINK paper, how long does it take to precompute the embeddings of every entity,
+    on what hardware, and how large is the entity pool?
+  sources: [blink.pdf]
+  answer: About 2.8 hours on 8 NVIDIA Volta V100 GPUs, for a pool of 5.9M entities.
+  grading:
+    numbers: [{value: 2.8, tol: 0.05}, {value: 8, tol: 0}, {value: 5.9, tol: 0.05}]
+    key_points:
+      - About 2.8 hours
+      - 8 NVIDIA V100 GPUs
+      - 5.9 million entities
+  cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["it takes about 2.8 hours to compute"]
+  requires: [retrieval]
+
+- id: q03
+  category: paper_fact
+  language: en
+  question: >
+    Describe the NEL dataset from the NIL prediction paper: how many positive and negative
+    examples does it have, what is its inter-annotator agreement, and how many candidate
+    entities does a mention have on average?
+  sources: [nil-prediction.pdf]
+  answer: >
+    6,593 positive and 3,331 negative examples (9,924 in total, 33.57% NIL), 94.61%
+    inter-annotator agreement, and 3.80 candidate entities per mention on average.
+  grading:
+    numbers: [{value: 6593, tol: 0}, {value: 3331, tol: 0}, {value: 94.61, tol: 0.01}, {value: 3.8, tol: 0.01}]
+    key_points:
+      - 6,593 positive examples
+      - 3,331 negative examples
+      - 94.61% inter-annotator agreement
+      - 3.80 candidates per mention on average
+  cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["6,593 positive examples", "94.61%"]
+  requires: [retrieval]
+
+- id: q04
+  category: paper_fact
+  language: en
+  question: >
+    Which NIL threshold (epsilon) and lambda does the NIL prediction paper use for CLINK on
+    NEL, and which values does it use on AIDA without NIL, MSNBC and WNED-WIKI? Why would
+    epsilon differ between the two settings?
+  sources: [nil-prediction.pdf]
+  answer: >
+    On NEL (and AIDA with NIL): epsilon = 0.5 and lambda = 0.5. On AIDA w/o NIL, MSNBC and
+    WNED-WIKI: epsilon = 0 and lambda = 0.9. Those datasets have no NIL mentions to predict,
+    so a threshold of 0 means the model always links to its best candidate.
+  grading:
+    key_points:
+      - On NEL, epsilon is 0.5 and lambda is 0.5
+      - On AIDA w/o NIL, MSNBC and WNED-WIKI, epsilon is 0 and lambda is 0.9
+      - Epsilon 0 means always linking, because those datasets have no NIL mentions
+  cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["AIDA w/o NIL, MSNBC & WNED-WIKI"]
+  requires: [retrieval, table_reading]
+
+- id: q05
+  category: paper_fact
+  language: en
+  question: >
+    In BLINK's approximate-search experiments with FAISS, how many times faster per query is
+    HNSW2 than exact search, and how much accuracy and Recall@100 does it give up?
+  sources: [blink.pdf]
+  answer: >
+    9.2 ms vs 1.4 ms per query, about 6.6 times faster. Accuracy drops from 71.5 to 70.7
+    (0.8 points) and Recall@100 from 96.7 to 94.6 (2.1 points).
+  grading:
+    numbers: [{value: 6.6, tol: 0.1}, {value: 0.8, tol: 0.05}, {value: 2.1, tol: 0.05}]
+    key_points:
+      - Exact search takes 9.2 ms per query and HNSW2 1.4 ms, about 6.6x faster
+      - Accuracy falls by 0.8 points (71.5 to 70.7)
+      - Recall@100 falls by 2.1 points (96.7 to 94.6)
+  cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["HNSW2 70.7 91.0 93.9 94.6 1.4"]
+  requires: [retrieval, table_reading, computation]
+
+- id: q06
+  category: cross_paper
+  language: en
+  question: >
+    BLINK and ReFinED both report results on the WikilinksNED Unseen-Mentions test set.
+    What is the best number each paper reports there, how far apart are they, and is the
+    comparison fair?
+  sources: [blink.pdf, refined.pdf]
+  answer: >
+    BLINK's best is 76.8 accuracy (trained on Wikipedia and in-domain data); ReFinED reports
+    66.5 total ED accuracy (61.6 seen, 68.2 unseen), 10.3 points lower. Only roughly comparable:
+    both train on the dataset's in-domain training data and report accuracy on the same test set
+    ("zero-shot" in ReFinED refers to the unseen entities, not to skipping in-domain training), but
+    the systems differ in encoders, candidate generation and pretraining, and ReFinED doesn't
+    compare itself with BLINK there.
+  grading:
+    numbers: [{value: 76.8, tol: 0.05}, {value: 66.5, tol: 0.05}, {value: 10.3, tol: 0.1}]
+    key_points:
+      - BLINK's best result is 76.8 (Wikipedia + in-domain training)
+      - ReFinED reports 66.5 total accuracy
+      - The gap is about 10.3 points in BLINK's favour
+      - Only roughly comparable - same test set and both trained in-domain, but different systems and setups (encoders, candidates, pretraining)
+  cite: [blink.pdf, refined.pdf]
+  evidence:
+    blink.pdf: ["Ours Wiki and in-domain 76.8"]
+    refined.pdf: ["ReFinED 61.6 68.2 66.5"]
+  requires: [retrieval, multi_doc, table_reading, computation]
+
+- id: q07
+  category: cross_paper
+  language: en
+  question: >
+    BLINK's performance on AIDA appears in both the ReFinED paper and the NIL prediction
+    paper. What numbers does each paper give for BLINK on AIDA, and why do they differ?
+  sources: [refined.pdf, nil-prediction.pdf]
+  answer: >
+    ReFinED's Table 1 lists Wu et al. (2020) at 86.7 on AIDA, marked as normalised accuracy.
+    The NIL paper reports BLINK-cross at 87.49 and BLINK-bi at 82.61 overall accuracy on AIDA
+    without NIL (and 79.58 / 65.01 with NIL). They differ because of the metric (normalised
+    accuracy vs overall accuracy), the training (the NIL paper trains its own BLINK models
+    with BERT-large on AIDA-train), and whether NIL mentions are included.
+  grading:
+    numbers: [{value: 86.7, tol: 0.05}, {value: 87.49, tol: 0.01}]
+    key_points:
+      - ReFinED reports 86.7 for Wu et al. (2020) on AIDA, as normalised accuracy
+      - The NIL paper reports BLINK-cross at 87.49 on AIDA without NIL (BLINK-bi 82.61)
+      - The NIL paper also reports lower numbers with NIL mentions included (79.58 cross, 65.01 bi)
+      - Differences come from the metric, the training setup and NIL handling
+  cite: [refined.pdf, nil-prediction.pdf]
+  evidence:
+    refined.pdf: ["86.7 90.3 88.9"]
+    nil-prediction.pdf: ["BLINK-cross 84.09 88.89 85.70 83.08 45.16 79.58 87.49"]
+  requires: [retrieval, multi_doc, table_reading]
+
+- id: q08
+  category: cross_paper
+  language: en
+  question: >
+    Do the BLINK paper and the NIL prediction paper reach the same conclusion about
+    bi-encoders versus cross-encoders? Support the answer with specific numbers from both.
+  sources: [blink.pdf, nil-prediction.pdf]
+  answer: >
+    Partly. BLINK finds the cross-encoder more accurate (TACKBP-2010: 94.5 vs 92.9 for the
+    bi-encoder alone). The NIL paper agrees on overall accuracy (e.g. CLINK-cross 87.71 vs
+    CLINK-bi 79.25 on NEL) but finds bi-encoders strong at detecting NIL mentions: BLINK-bi
+    has the best NIL accuracy on AIDA with NIL (69.59 vs 45.16 for BLINK-cross) and 88.59 on
+    NEL, close to CLINK-cross's 89.19, suggesting cross-encoders may overfit.
+  grading:
+    key_points:
+      - BLINK finds the cross-encoder more accurate than the bi-encoder (e.g. 94.5 vs 92.9 on TACKBP-2010)
+      - The NIL paper also finds cross-encoders better in overall accuracy
+      - The NIL paper finds bi-encoders strong at NIL detection (BLINK-bi 69.59 vs BLINK-cross 45.16 NIL accuracy on AIDA with NIL)
+      - The NIL paper suggests cross-encoders may be more prone to overfitting
+  cite: [blink.pdf, nil-prediction.pdf]
+  evidence:
+    blink.pdf: ["Ours (bi-encoder only) 92.9"]
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59"]
+  requires: [retrieval, multi_doc, synthesis]
+
+- id: q09
+  category: cross_paper
+  language: en
+  question: >
+    How large are the entity type systems used by ReFinED and by CLINK, and why does the NIL
+    paper use two different type systems?
+  sources: [refined.pdf, nil-prediction.pdf]
+  answer: >
+    ReFinED uses 1,400 entity types. CLINK uses 187 distinct types on NEL and only 14
+    top-level types on the traditional datasets, because the type distribution may differ
+    across datasets and fewer, coarser types make CLINK more transferable.
+  grading:
+    numbers: [{value: 1400, tol: 0}, {value: 187, tol: 0}, {value: 14, tol: 0}]
+    key_points:
+      - ReFinED uses 1,400 entity types
+      - CLINK uses 187 types on NEL
+      - CLINK uses 14 top-level types on traditional datasets, to transfer better across datasets
+  cite: [refined.pdf, nil-prediction.pdf]
+  evidence:
+    refined.pdf: ["# entity types 1400"]
+    nil-prediction.pdf: ["187 distinct types"]
+  requires: [retrieval, multi_doc]
+
+- id: q10
+  category: calculation
+  language: en
+  question: >
+    The ReFinED paper says the deployment processed a billion web pages in "27k machine hours
+    (2 days using 500 instances)". Do those numbers agree? Also, how many mentions did each
+    machine link per hour on average?
+  sources: [refined.pdf]
+  answer: >
+    Not exactly: 500 instances for 2 days is 24,000 machine hours, not 27,000 (27,000 hours on
+    500 instances is 54 hours, about 2.25 days). With 25 billion mentions in 27,000 machine
+    hours, each machine linked about 926,000 mentions per hour (about 257 per second).
+  grading:
+    numbers: [{value: 24000, tol: 0}, {value: 925926, tol: 2000}]
+    key_points:
+      - 500 instances x 48 hours = 24,000 machine hours, so the figures don't quite match 27k (27k hours would take about 2.25 days)
+      - The deployment linked 25 billion mentions
+      - About 926,000 mentions per machine hour (about 257 per second)
+  cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["27k machine hours"]
+  requires: [retrieval, computation]
+
+- id: q11
+  category: calculation
+  language: en
+  question: >
+    Using ReFinED's inference-time table, what is ReFinED's throughput in mentions per second
+    on the AIDA-CoNLL test set, and how long does the BLINK bi-encoder take per mention? How
+    does that compare with the 9.2 ms per query reported in the BLINK paper?
+  sources: [refined.pdf, blink.pdf]
+  answer: >
+    The test set has 4,464 mentions. ReFinED takes 15 s: about 298 mentions per second. The
+    BLINK bi-encoder takes 93 s: about 20.8 ms per mention. BLINK's 9.2 ms is only the FAISS
+    exact-search retrieval of the top 100 candidates per query (on CPU, WikilinksNED), not the
+    full end-to-end pipeline ReFinED timed, so the numbers measure different things.
+  grading:
+    numbers: [{value: 297.6, tol: 1}, {value: 20.8, tol: 0.2}]
+    key_points:
+      - ReFinED processes about 298 mentions per second (4,464 mentions in 15 s)
+      - The BLINK bi-encoder takes about 20.8 ms per mention (93 s / 4,464)
+      - BLINK's 9.2 ms measures candidate retrieval only, so it isn't the same measurement
+  cite: [refined.pdf, blink.pdf]
+  evidence:
+    refined.pdf: ["ReFinED 15 89.4"]
+    blink.pdf: ["9.2 ms on average"]
+  requires: [retrieval, multi_doc, computation]
+
+- id: q12
+  category: calculation
+  language: en
+  question: >
+    In the NIL prediction paper's main results, which model loses the most overall accuracy
+    on AIDA when NIL mentions are included, and by how much? Rank all four BLINK/CLINK models
+    by that drop.
+  sources: [nil-prediction.pdf]
+  answer: >
+    BLINK-bi drops the most: 82.61 to 65.01, 17.60 points. Then CLINK-bi 8.17 (83.26 to 75.09),
+    BLINK-cross 7.91 (87.49 to 79.58) and CLINK-cross 6.13 (88.16 to 82.03).
+  grading:
+    numbers: [{value: 17.6, tol: 0.02}, {value: 8.17, tol: 0.02}, {value: 7.91, tol: 0.02}, {value: 6.13, tol: 0.02}]
+    key_points:
+      - BLINK-bi drops the most, by 17.60 points
+      - Order is BLINK-bi, CLINK-bi (8.17), BLINK-cross (7.91), CLINK-cross (6.13)
+  cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59 65.01 82.61"]
+  requires: [retrieval, table_reading, computation]
+
+- id: q13
+  category: calculation
+  language: en
+  question: >
+    In ReFinED's entity disambiguation table, average the F1 of "ReFinED (Wikipedia)" and of
+    "ReFinED (fine-tuned)" over the out-of-domain datasets only. Which version generalises
+    better out of domain, and how does that square with the overall averages?
+  sources: [refined.pdf]
+  answer: >
+    Out of domain (MSNBC, AQUAINT, ACE2004, CWEB, WIKI): ReFinED (Wikipedia) averages 88.86
+    and ReFinED (fine-tuned) 88.50, so the Wikipedia-only model is slightly better out of
+    domain. The fine-tuned model has the higher overall average (89.4 vs 88.6) because of its
+    large gain on in-domain AIDA (93.9 vs 87.5).
+  grading:
+    numbers: [{value: 88.86, tol: 0.02}, {value: 88.5, tol: 0.02}]
+    key_points:
+      - The Wikipedia-only model averages 88.86 out of domain
+      - The fine-tuned model averages 88.50 out of domain
+      - The Wikipedia-only model is slightly better out of domain; fine-tuning wins overall because of AIDA
+  cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["ReFinED (Wikipedia) 87.5 94.4 91.8 91.6 77.8 88.7 88.6"]
+  requires: [retrieval, table_reading, computation]
+
+- id: q14
+  category: spreadsheet
+  language: en
+  question: >
+    What is the average micro F1 of ReFinED on AIDA in our reproduction spreadsheet?
+  sources: [reproduction_runs.xlsx]
+  answer: >
+    92.77, averaged over the three valid seeds. The failed run (12.4) must be excluded as the
+    notes sheet says; including it would give 72.68.
+  grading:
+    numbers: [{value: 92.77, tol: 0.01}]
+    key_points:
+      - The average is 92.77
+      - The failed run is excluded, as the notes sheet instructs
+  cite: [reproduction_runs.xlsx]
+  evidence:
+    reproduction_runs.xlsx: ["exclude them from every average"]
+  requires: [retrieval, table_reading, computation]
+
+- id: q15
+  category: spreadsheet
+  language: en
+  question: >
+    In our reproduction, which system has the highest average F1 over all datasets, and how
+    does its total GPU cost compare with the most expensive system?
+  sources: [reproduction_runs.xlsx]
+  answer: >
+    ReFinED, with an average of 90.99 over its valid runs. Its GPU cost is 6.50 USD (T4 at
+    0.53 USD/hour), against 247.65 USD for BLINK-cross, the most expensive: about 38 times
+    cheaper. (Costs include the failed runs, which were billed.)
+  grading:
+    numbers: [{value: 90.99, tol: 0.01}, {value: 6.5, tol: 0.01}, {value: 247.65, tol: 0.01}]
+    key_points:
+      - ReFinED has the highest average F1, 90.99
+      - ReFinED's total cost is 6.50 USD
+      - BLINK-cross is the most expensive at 247.65 USD, about 38x more
+  cite: [reproduction_runs.xlsx]
+  evidence:
+    reproduction_runs.xlsx: ["usd_per_hour"]
+  requires: [retrieval, table_reading, computation]
+
+- id: q16
+  category: spreadsheet
+  language: en
+  question: >
+    Did our reproduction stay within the budget agreed in the lab notes? By how much was it
+    over or under?
+  sources: [reproduction_runs.xlsx, lab_notes.md]
+  answer: >
+    No. All runs cost 559.29 USD in GPU time (failed runs are billed and count), against a
+    budget of 400 USD: 159.29 USD over.
+  grading:
+    numbers: [{value: 559.29, tol: 0.01}, {value: 400, tol: 0}, {value: 159.29, tol: 0.01}]
+    key_points:
+      - The budget was 400 USD
+      - Total cost was 559.29 USD, including the billed failed runs
+      - It was 159.29 USD over budget
+  cite: [reproduction_runs.xlsx, lab_notes.md]
+  evidence:
+    reproduction_runs.xlsx: ["usd_per_hour"]
+    lab_notes.md: ["capped at 400 USD"]
+  requires: [retrieval, multi_doc, table_reading, computation]
+
+- id: q17
+  category: spreadsheet
+  language: en
+  question: >
+    From nil_audit.csv, what is each model's NIL accuracy (the share of gold-NIL mentions it
+    predicts as NIL), broken down by NIL type?
+  sources: [nil_audit.csv]
+  answer: >
+    Bi-encoder: 88.0% on missing_entity (44/50) and 89.1% on non_entity_phrase (49/55).
+    Cross-encoder: 74.0% on missing_entity (37/50) and 87.3% on non_entity_phrase (48/55).
+  grading:
+    numbers: [{value: 88.0, tol: 0.1}, {value: 89.1, tol: 0.1}, {value: 74.0, tol: 0.1}, {value: 87.3, tol: 0.1}]
+    key_points:
+      - Bi-encoder 88.0% on missing_entity and 89.1% on non_entity_phrase
+      - Cross-encoder 74.0% on missing_entity and 87.3% on non_entity_phrase
+  cite: [nil_audit.csv]
+  requires: [retrieval, table_reading, computation]
+
+- id: q18
+  category: spreadsheet
+  language: en
+  question: >
+    For the cross-encoder in nil_audit.csv, what are the precision, recall and F1 of
+    predicting NIL?
+  sources: [nil_audit.csv]
+  answer: >
+    It predicts NIL 97 times, 85 of them correctly, out of 105 gold-NIL mentions: precision
+    87.6%, recall 81.0%, F1 84.2%.
+  grading:
+    numbers: [{value: 87.6, tol: 0.1}, {value: 81.0, tol: 0.1}, {value: 84.2, tol: 0.1}]
+    key_points:
+      - Precision about 87.6% (85/97)
+      - Recall about 81.0% (85/105)
+      - F1 about 84.2%
+  cite: [nil_audit.csv]
+  requires: [retrieval, table_reading, computation]
+
+- id: q19
+  category: spreadsheet
+  language: fa
+  question: >
+    در فایل nil_audit.csv، دقت کلی مدل cross-encoder روی جمله‌های فارسی چقدر است؟ آیا از
+    دقتش روی جمله‌های انگلیسی بهتر است؟
+  sources: [nil_audit.csv]
+  answer: >
+    روی ۵۲ جمله‌ی فارسی ۸۴٫۶٪ (۴۴ از ۵۲) و روی ۱۸۸ جمله‌ی انگلیسی ۸۵٫۱٪ (۱۶۰ از ۱۸۸)؛ یعنی
+    روی فارسی کمی بدتر است.
+  grading:
+    numbers: [{value: 84.6, tol: 0.1}, {value: 85.1, tol: 0.1}]
+    key_points:
+      - Accuracy on Persian rows is about 84.6% (44 of 52)
+      - Accuracy on English rows is about 85.1% (160 of 188)
+      - So it is slightly worse on Persian, not better
+      - The answer is written in Persian
+  cite: [nil_audit.csv]
+  requires: [retrieval, table_reading, computation, persian]
+
+- id: q20
+  category: cross_paper
+  language: en
+  question: >
+    Does our NIL audit reproduce the NIL paper's observation about bi-encoders and NIL
+    detection? Compare the numbers.
+  sources: [nil_audit.csv, nil-prediction.pdf]
+  answer: >
+    Yes, qualitatively. In our audit the bi-encoder has higher NIL accuracy (88.6%, 93/105)
+    than the cross-encoder (81.0%, 85/105), while the cross-encoder has higher overall
+    accuracy (85.0% vs 79.6%). The paper reports the same pattern: BLINK-bi has the best NIL
+    accuracy on AIDA with NIL (69.59 vs 45.16 for BLINK-cross) and is comparable on NEL
+    (88.59 vs 88.89), while cross-encoders win on overall accuracy.
+  grading:
+    numbers: [{value: 88.6, tol: 0.1}, {value: 81.0, tol: 0.1}]
+    key_points:
+      - In the audit, the bi-encoder's NIL accuracy (about 88.6%) beats the cross-encoder's (about 81.0%)
+      - In the audit, the cross-encoder has higher overall accuracy (about 85.0% vs 79.6%)
+      - The paper shows the same pattern (e.g. BLINK-bi 69.59 vs BLINK-cross 45.16 NIL accuracy on AIDA with NIL)
+  cite: [nil_audit.csv, nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["BLINK-bi 72.27 88.59 77.74 64.54 69.59"]
+  requires: [retrieval, multi_doc, table_reading, computation]
+
+- id: q21
+  category: code
+  language: en
+  question: >
+    What does nil_threshold.py print? Would any mention be linked differently under the NIL
+    paper's own decision rule?
+  sources: [nil_threshold.py, nil-prediction.pdf]
+  answer: >
+    It prints: "Jaguar (car maker) -> Jaguar Cars", "the birds -> NIL", "Mercury -> NIL",
+    "Apple -> Apple Inc.", "phoenix -> Phoenix, Arizona", then "NIL: 2/5". The script links
+    only when the best score is strictly greater than 0.5, but the paper's Eq. 10 links when
+    the score is greater than or equal to epsilon. "the birds" has a best score of exactly
+    0.50, so under the paper's rule it links to "The Birds (film)" and only 1 of 5 is NIL.
+  grading:
+    key_points:
+      - The output links Jaguar to Jaguar Cars, Apple to Apple Inc. and phoenix to Phoenix, Arizona
+      - '"the birds" and "Mercury" go to NIL, and the last line is "NIL: 2/5"'
+      - The script uses a strict > while the paper uses >= epsilon
+      - Under the paper's rule "the birds" (score exactly 0.50) links to The Birds (film), leaving 1/5 NIL
+  cite: [nil_threshold.py, nil-prediction.pdf]
+  evidence:
+    nil_threshold.py: ["if score > epsilon"]
+    nil-prediction.pdf: ["nil threshold ϵ = 0.5"]
+  requires: [retrieval, code_reasoning, multi_doc]
+
+- id: q22
+  category: code
+  language: en
+  question: >
+    What does recall_at_k.py print? Are those values correct?
+  sources: [recall_at_k.py]
+  answer: >
+    It prints "R@1 = 0.20", "R@10 = 0.55" and "R@64 = 0.85". They are too high: the ranks are
+    0-based, so recall@k should count r < k, but the code uses r <= k and counts one extra
+    position. The correct values are 0.15, 0.50 and 0.80.
+  grading:
+    numbers: [{value: 0.2, tol: 0}, {value: 0.55, tol: 0}, {value: 0.85, tol: 0}, {value: 0.15, tol: 0}, {value: 0.5, tol: 0}, {value: 0.8, tol: 0}]
+    key_points:
+      - It prints R@1 = 0.20, R@10 = 0.55 and R@64 = 0.85
+      - There's an off-by-one bug: ranks are 0-based, so the condition should be r < k
+      - The correct values are 0.15, 0.50 and 0.80
+  cite: [recall_at_k.py]
+  evidence:
+    recall_at_k.py: ["r <= k"]
+  requires: [retrieval, code_reasoning, computation]
+
+- id: q23
+  category: code
+  language: en
+  question: >
+    What does latency_estimate.ts print, and how many times slower than ReFinED is the
+    cross-encoder in that estimate?
+  sources: [latency_estimate.ts]
+  answer: >
+    "refined: 18.1 h", "bi-encoder: 138.9 h" and "cross-encoder: 2083.3 h". The cross-encoder
+    is about 115 times slower than ReFinED.
+  grading:
+    numbers: [{value: 18.1, tol: 0}, {value: 138.9, tol: 0}, {value: 2083.3, tol: 0}, {value: 115, tol: 1}]
+    key_points:
+      - It prints refined 18.1 h, bi-encoder 138.9 h and cross-encoder 2083.3 h
+      - The cross-encoder is about 115x slower than ReFinED
+  cite: [latency_estimate.ts]
+  evidence:
+    latency_estimate.ts: ["msPerForwardPass: 65"]
+  requires: [retrieval, code_reasoning, computation]
+
+- id: q24
+  category: image
+  language: en
+  question: >
+    Using the attached table, how many times faster is the fastest method than each of the
+    others, and is the fastest method also the most accurate?
+  image: refined_table5.png
+  answer: >
+    ReFinED takes 15 s: 140x faster than Cao et al. (2100 s), 6.2x faster than the bi-encoder
+    (93 s), 61.1x faster than the cross-encoder (917 s) and 29.2x faster than Orr et al.
+    (438 s). It also has the highest average ED F1, 89.4.
+  grading:
+    numbers: [{value: 140, tol: 0.5}, {value: 6.2, tol: 0.05}, {value: 61.1, tol: 0.1}, {value: 29.2, tol: 0.1}, {value: 89.4, tol: 0}]
+    key_points:
+      - ReFinED is fastest at 15 seconds
+      - About 140x vs Cao et al., 6.2x vs the bi-encoder, 61.1x vs the cross-encoder and 29.2x vs Orr et al.
+      - ReFinED also has the best F1, 89.4
+  cite: []
+  requires: [vision, computation]
+
+- id: q25
+  category: conflict
+  language: en
+  question: >
+    The attached chart is from our own benchmark. How many times faster than the BLINK
+    cross-encoder is ReFinED in it? Is the claim in our lab notes about ReFinED's speed
+    supported by our benchmark or by the ReFinED paper?
+  sources: [lab_notes.md, refined.pdf]
+  image: throughput_chart.png
+  answer: >
+    In our benchmark ReFinED links 297 mentions per second against 4.9 for the BLINK
+    cross-encoder: about 61 times faster. The lab notes claim "about 100x"; that isn't
+    supported. The ReFinED paper says it is 60 times faster than the BLINK cross-encoder
+    (15 s vs 917 s on AIDA-CoNLL, about 61x), which agrees with our benchmark.
+  grading:
+    numbers: [{value: 60.6, tol: 0.5}]
+    key_points:
+      - The chart shows about 61x (297 vs 4.9 mentions per second)
+      - The lab notes claim about 100x
+      - The ReFinED paper reports about 60x, matching the benchmark, so the 100x claim is wrong
+  cite: [lab_notes.md, refined.pdf]
+  evidence:
+    lab_notes.md: ["about 100x faster"]
+    refined.pdf: ["60 times faster than the BLINK cross-encoder"]
+  requires: [vision, retrieval, multi_doc, computation, conflict_detection]
+
+- id: q26
+  category: web
+  language: en
+  question: >
+    BLINK's zero-shot entity linking dataset was built from a website. What is that website
+    called today, and in what year was it founded? Search the web.
+  sources: [blink.pdf]
+  web_search: true
+  answer: >
+    The dataset was built from Wikia, which is now called Fandom. It was founded in 2004.
+  grading:
+    numbers: [{value: 2004, tol: 0}]
+    key_points:
+      - The dataset was built from Wikia
+      - Wikia is now called Fandom
+      - It was founded in 2004
+  cite: [blink.pdf]
+  evidence:
+    blink.pdf: ["Logeswaran et al. (2019) from Wikia"]
+  requires: [retrieval, web]
+
+- id: q27
+  category: web
+  language: en
+  question: >
+    ReFinED times its inference on the AIDA-CoNLL test set. How many documents does that test
+    set have, how many does the whole AIDA CoNLL-YAGO dataset have, and what share of the
+    dataset is the test set? Search the web for the dataset size.
+  sources: [refined.pdf]
+  web_search: true
+  answer: >
+    The test set has 231 documents (4,464 mentions). The full AIDA CoNLL-YAGO dataset has
+    1,393 documents, so the test set is about 16.6% of it.
+  grading:
+    numbers: [{value: 231, tol: 0}, {value: 1393, tol: 0}, {value: 16.6, tol: 0.1}]
+    key_points:
+      - The test set has 231 documents
+      - The whole dataset has 1,393 documents
+      - The test set is about 16.6% of the dataset
+  cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["231 documents and 4464 mentions"]
+  requires: [retrieval, web, computation]
+
+- id: q28
+  category: web
+  language: en
+  question: >
+    The NIL prediction paper's authors come from two universities. According to the web,
+    which of the two was founded earlier, and how many years apart were they founded?
+  sources: [nil-prediction.pdf]
+  web_search: true
+  answer: >
+    Tsinghua University (founded 1911) and Peking University (founded 1898). Peking University
+    is older, by 13 years.
+  grading:
+    numbers: [{value: 1911, tol: 0}, {value: 1898, tol: 0}, {value: 13, tol: 0}]
+    key_points:
+      - The universities are Tsinghua University and Peking University
+      - Tsinghua was founded in 1911 and Peking University in 1898
+      - Peking University is older, by 13 years
+  cite: [nil-prediction.pdf]
+  evidence:
+    nil-prediction.pdf: ["Tsinghua University", "Peking University"]
+  requires: [retrieval, web, computation]
+
+- id: q29
+  category: unanswerable
+  language: en
+  question: >
+    What F1 score does ReFinED achieve on TACKBP-2010?
+  sources: [refined.pdf, blink.pdf]
+  answer: >
+    The ReFinED paper doesn't report results on TACKBP-2010. (BLINK reports 94.5 accuracy on
+    it, but that's BLINK, not ReFinED.)
+  grading:
+    abstain: true
+    key_points:
+      - Says ReFinED's paper does not report a TACKBP-2010 result
+      - Does not present BLINK's TACKBP-2010 number as ReFinED's
+  cite: []
+  requires: [retrieval, abstention]
+
+- id: q30
+  category: unanswerable
+  language: en
+  question: >
+    How much did the ReFinED production deployment cost in US dollars?
+  sources: [refined.pdf]
+  answer: >
+    The paper doesn't give a dollar cost. It only says the billion pages took 27k machine
+    hours on machines with a single T4 GPU.
+  grading:
+    abstain: true
+    key_points:
+      - Says the paper doesn't state a dollar cost
+      - Does not invent a price or a cost estimate
+  cite: []
+  requires: [retrieval, abstention]
+
+- id: q31
+  category: unanswerable
+  language: en
+  question: >
+    What NIL accuracy does GENRE achieve on AIDA with NIL mentions in the NIL prediction
+    paper?
+  sources: [nil-prediction.pdf]
+  answer: >
+    None: the table shows "-" for GENRE on AIDA with NIL. GENRE's results are given only for
+    NEL and for the datasets without NIL (taken from the GENRE paper).
+  grading:
+    abstain: true
+    key_points:
+      - Says GENRE has no reported result on AIDA with NIL
+  cite: []
+  requires: [retrieval, table_reading, abstention]
+
+- id: q32
+  category: persian
+  language: fa
+  question: >
+    طبق یادداشت‌های فارسی تیم، برچسب‌گذاری جمله‌های فارسی چند روز کاری طول می‌کشد؟ آستانه‌ی NIL
+    که برای متن فارسی انتخاب شده چه تفاوتی با آستانه‌ی مقاله‌ی NIL دارد؟
+  sources: [yaddasht-ha.md, nil-prediction.pdf]
+  answer: >
+    ۶۰۰ جمله با سه برچسب‌گذار و روزی ۴۰ جمله برای هر نفر، یعنی ۱۲۰ جمله در روز؛ پس ۵ روز کاری.
+    آستانه‌ی فارسی ۰٫۴۵ است، ۰٫۰۵ کمتر از آستانه‌ی ۰٫۵ مقاله.
+  grading:
+    numbers: [{value: 5, tol: 0}, {value: 0.45, tol: 0}, {value: 0.5, tol: 0}]
+    key_points:
+      - 600 sentences at 120 per day (3 annotators x 40) take 5 working days
+      - The Persian NIL threshold is 0.45
+      - The NIL paper uses 0.5, so the Persian threshold is 0.05 lower
+      - The answer is written in Persian
+  cite: [yaddasht-ha.md, nil-prediction.pdf]
+  evidence:
+    yaddasht-ha.md: ["هر برچسب‌گذار روزانه ۴۰ جمله"]
+    nil-prediction.pdf: ["nil threshold ϵ = 0.5"]
+  requires: [retrieval, multi_doc, computation, persian]
+
+- id: q33
+  category: persian
+  language: fa
+  question: >
+    مدل ReFinED چند برابر سریع‌تر از cross-encoder مدل BLINK است؟ این سرعت روی چه مجموعه‌داده‌ای و
+    با چه سخت‌افزاری اندازه‌گیری شده است؟
+  sources: [refined.pdf]
+  answer: >
+    حدود ۶۰ برابر (۱۵ ثانیه در برابر ۹۱۷ ثانیه، حدود ۶۱ برابر)، روی مجموعه‌ی آزمون AIDA-CoNLL با
+    ۲۳۱ سند و ۴۴۶۴ اشاره، با یک کارت گرافیک V100.
+  grading:
+    numbers: [{value: 60.5, tol: 1}]
+    key_points:
+      - About 60 times faster (the paper says 60x; 917 s vs 15 s is about 61x)
+      - Measured on the AIDA-CoNLL test set
+      - On a single V100 GPU
+      - The answer is written in Persian
+  cite: [refined.pdf]
+  evidence:
+    refined.pdf: ["60 times faster than the BLINK cross-encoder"]
+  requires: [retrieval, persian, computation]

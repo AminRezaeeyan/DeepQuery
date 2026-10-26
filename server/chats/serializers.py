@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import Chat, Message
 
@@ -5,40 +6,57 @@ from  ai_core.exceptions import ProviderUnavailable
 from ai_core.services.provider_service import ProviderService
 
 
-class MessageSerializer(serializers.ModelSerializer):
+class AnswerOptionsSerializer(serializers.Serializer):
+    """Per-request answer settings, accepted when sending or editing a message."""
     enable_web_search = serializers.BooleanField(write_only=True, required=False, default=False)
     strict_quote_mode = serializers.BooleanField(write_only=True, required=False, default=False)
     challenge_mode = serializers.BooleanField(write_only=True, required=False, default=False)
-    audience_type = serializers.CharField(write_only=True, required=False, default="General")
-    reasoning_depth = serializers.CharField(write_only=True, required=False, default="Medium")
+    # Fixed choices: these values end up in the system prompt.
+    audience_type = serializers.ChoiceField(choices=["General", "Expert"], write_only=True, required=False, default="General")
+    reasoning_depth = serializers.ChoiceField(choices=["Low", "Medium", "High"], write_only=True, required=False, default="Medium")
+
+    OPTION_FIELDS = ["enable_web_search", "strict_quote_mode", "challenge_mode", "audience_type", "reasoning_depth"]
+
+    def answer_options(self):
+        return {name: self.validated_data[name] for name in self.OPTION_FIELDS}
+
+    def create(self, validated_data):
+        for name in self.OPTION_FIELDS:
+            validated_data.pop(name, None)
+        return super().create(validated_data)
+
+
+class MessageSerializer(AnswerOptionsSerializer, serializers.ModelSerializer):
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Point at the authenticated endpoint; the stored path isn't served.
+        data["image"] = f"/api/messages/{instance.uuid}/image/" if instance.image else None
+        return data
+
+    def validate_image(self, image):
+        # ImageField already checks the bytes are a real image (Pillow).
+        if image and image.size > settings.CHAT_IMAGE_MAX_UPLOAD_BYTES:
+            limit_mb = settings.CHAT_IMAGE_MAX_UPLOAD_BYTES // (1024 * 1024)
+            raise serializers.ValidationError(f"Images can be at most {limit_mb} MB.")
+        return image
 
     class Meta:
         model = Message
         fields = [
             'uuid', 'role', 'content', 'image', 'enable_web_search', 
             'strict_quote_mode', 'challenge_mode', 'audience_type', 
-            'reasoning_depth', 'created_at'
+            'reasoning_depth', 'trace', 'created_at'
         ]
-        read_only_fields = ['uuid', 'role', 'created_at']
-
-    def create(self, validated_data):
-            web_search = validated_data.pop('enable_web_search', False)
-            strict_quote = validated_data.pop('strict_quote_mode', False)
-            challenge = validated_data.pop('challenge_mode', False)
-            audience = validated_data.pop('audience_type', 'General')
-            reasoning = validated_data.pop('reasoning_depth', 'Medium')
-
-            instance = super().create(validated_data)
-            
-            return instance
+        read_only_fields = ['uuid', 'role', 'trace', 'created_at']
 
 
 
-class MessageUpdateSerializer(serializers.ModelSerializer):
+class MessageUpdateSerializer(AnswerOptionsSerializer, serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ["content"]
+        fields = ["content", *AnswerOptionsSerializer.OPTION_FIELDS]
 
     def validate(self, data):
         message = self.instance

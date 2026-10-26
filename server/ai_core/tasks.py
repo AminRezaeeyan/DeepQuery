@@ -52,7 +52,7 @@ def reembed_all_objects(new_provider_id):
 
     unique_objects = (
         EmbeddedObject.objects
-        .values("content_type", "object_id")
+        .values("content_type", "object_id", "tag")
         .distinct()
     )
 
@@ -64,16 +64,31 @@ def reembed_all_objects(new_provider_id):
         if instance is None:
             continue
 
-        raw_text = str(instance)
+        raw_text = text_for_reembedding(instance)
 
         if not raw_text:
             continue
 
-        service.embed_instance(instance, raw_text)
+        # Documents keep their page/sheet segments so citations still name the page.
+        segments = getattr(instance, "extracted_segments", None) or None
+        service.embed_instance(instance, raw_text, tag=entry["tag"], segments=segments)
 
     finish_provider_switch(new_provider_id)
 
 
+# The field holding the text that was embedded, for each embedded model.
+EMBEDDED_TEXT_FIELDS = ("extracted_text", "fact")
+
+
+def text_for_reembedding(instance):
+    for field in EMBEDDED_TEXT_FIELDS:
+        value = getattr(instance, field, None)
+        if value:
+            return value
+    return None
+
+
+@transaction.atomic
 def finish_provider_switch(new_provider_id):
 
     new_provider = EmbeddingProvider.objects.get(id=new_provider_id)
@@ -82,10 +97,7 @@ def finish_provider_switch(new_provider_id):
         is_serving=True
     ).exclude(id=new_provider.id).first()
 
-    new_provider.is_serving = True
-    new_provider.status = "ready"
-    new_provider.save()
-
+    # Only one provider may serve at a time, so release the old one first.
     if old_provider:
 
         EmbeddedObject.objects.filter(
@@ -94,6 +106,10 @@ def finish_provider_switch(new_provider_id):
 
         old_provider.is_serving = False
         old_provider.save()
+
+    new_provider.is_serving = True
+    new_provider.status = "ready"
+    new_provider.save()
 
 
 @shared_task
@@ -117,8 +133,8 @@ def extract_and_embed_facts_task(user_id, chat_id, text, provider_id=None):
     
     for fact in facts:
 
+        # Facts are about the user, so a fact known from any chat is a duplicate.
         exists = MemoryFact.objects.filter(
-            chat_id=chat_id,
             user_id=user_id,
             fact__iexact=fact.strip()
         ).exists()

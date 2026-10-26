@@ -1,5 +1,7 @@
 from rest_framework.views import APIView, Response, status
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import ScopedRateThrottle
+from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import GoogleAuthSerializer, LoginSerializer, RegisterSerializer
 
@@ -14,6 +16,8 @@ def generate_tokens_for_user(user):
 
 class RegisterView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request, *args, **kwargs):
         serializer = RegisterSerializer(data=request.data)
@@ -22,7 +26,7 @@ class RegisterView(APIView):
         
         return Response(
             data={
-                "message": 'User created succussfully!',
+                "message": 'User created successfully!',
                 "tokens": generate_tokens_for_user(user)
             },
             status=status.HTTP_201_CREATED,
@@ -31,6 +35,8 @@ class RegisterView(APIView):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request, *args, **kwargs):
         serializer = LoginSerializer(data=request.data)
@@ -48,6 +54,8 @@ class LoginView(APIView):
 
 class GoogleAuthView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = GoogleAuthSerializer(data=request.data)
@@ -62,3 +70,8 @@ class GoogleAuthView(APIView):
             status=status.HTTP_200_OK
         )
         
+
+
+class ThrottledTokenRefreshView(TokenRefreshView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"

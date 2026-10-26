@@ -1,12 +1,12 @@
 from openai import OpenAI
-from .base import EmbeddingProviderBase, register_embedding_provider
+from .base import EMBEDDING_TIMEOUT, EmbeddingProviderBase, register_embedding_provider
 
 
 @register_embedding_provider("openai")
 class OpenAIEmbeddingProvider(EmbeddingProviderBase):
     def __init__(self, provider_model):
         super().__init__(provider_model)
-        self.client = OpenAI(api_key=self.provider_model.api_key, base_url=provider_model.base_url)
+        self.client = OpenAI(api_key=self.provider_model.api_key, base_url=provider_model.base_url, timeout=EMBEDDING_TIMEOUT)
 
     def embed_documents(self, texts):
         resp = self.client.embeddings.create(

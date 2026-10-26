@@ -1,0 +1,5 @@
+# Installed with `pip install --no-deps -r requirements-nodeps.txt`.
+# zarinpal-py-sdk 0.1.4 declares exact pins on setuptools, pytest and requests-mock that it
+# doesn't use at runtime (it only needs requests). The setuptools pin conflicts with current
+# PyTorch, so installing it normally makes pip fall back to an old, CUDA-only torch.
+zarinpal-py-sdk==0.1.4
